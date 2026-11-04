@@ -1,0 +1,18 @@
+{
+  "name": "basket-playbook",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Diseña sistemas de baloncesto, organízalos en playbooks y anímalos con IA.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "dev": "NODE_ENV=development node server/index.mjs",
+    "test": "node scripts/smoke.mjs",
+    "seed": "node scripts/seed-demo.mjs",
+    "backup": "node scripts/backup-db.mjs",
+    "create-user": "node scripts/create-user.mjs"
+  }
+}

@@ -1,0 +1,12 @@
+.git
+.github
+data
+backups
+node_modules
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.local
+docs
+scripts/smoke.mjs

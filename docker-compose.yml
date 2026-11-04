@@ -1,0 +1,23 @@
+services:
+  basket-playbook:
+    build: .
+    image: basket-playbook
+    container_name: basket-playbook
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DB_PATH: /data/basket-playbook.db
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-change-me}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-open}
+      INVITE_CODE: ${INVITE_CODE:-}
+      NAN_API_KEY: ${NAN_API_KEY:-}
+      NAN_MODEL: ${NAN_MODEL:-deepseek-v4-flash}
+    volumes:
+      - basket_data:/data
+    restart: unless-stopped
+
+volumes:
+  basket_data:
