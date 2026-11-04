@@ -103,6 +103,7 @@ export function createFrame(overrides = {}) {
     durationMs: 900,
     players: defaultPlayers(),
     actions: [],
+    strokes: [],
     ...overrides,
   };
 }

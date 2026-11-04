@@ -16,6 +16,7 @@
 - `Ctrl/Cmd + Shift + Z` o `Ctrl/Cmd + Y`: rehacer.
 - `Shift` mientras se arrastra: evita el snap a posiciones.
 - `Esc`: cierra modales.
+- En modo **Pizarra**, arrastra el puntero para dibujar; el borrador elimina el trazo más cercano.
 
 ## Accesibilidad
 

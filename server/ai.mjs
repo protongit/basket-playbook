@@ -41,6 +41,15 @@ export function playHash(play) {
         hasBall: Boolean(player.hasBall),
       })),
       actions: frame.actions || [],
+      strokes: (frame.strokes || []).map((stroke) => ({
+        tool: stroke.tool,
+        color: stroke.color,
+        width: stroke.width,
+        points: (stroke.points || []).map((point) => [
+          Number(Number(point.x).toFixed(4)),
+          Number(Number(point.y).toFixed(4)),
+        ]),
+      })),
     })),
     meta: play.meta,
   });
@@ -53,7 +62,6 @@ function fallbackSpec(play) {
     holdMs: index === 0 ? 900 : Math.max(350, Number(frame.durationMs) || 900),
     caption: frame.label || frame.note || `Bloque ${index + 1}`,
     focusPlayerIds: [],
-    camera: { scale: 1, focusX: 0.5, focusY: 0.52 },
   }));
   return normalizeSpec(
     {
@@ -61,7 +69,6 @@ function fallbackSpec(play) {
       style: "whiteboard",
       generatedBy: "fallback",
       beats,
-      camera: { mode: "fit", padding: 0.08 },
       highlights: [],
     },
     play,
@@ -99,18 +106,7 @@ function normalizeSpec(input, play, allowFill = true) {
     const focusPlayerIds = Array.isArray(source.focusPlayerIds)
       ? source.focusPlayerIds.filter((playerId) => validPlayers.has(playerId)).slice(0, 6)
       : [];
-    const camera = source.camera || {};
-    beats.push({
-      frameIndex: index,
-      holdMs,
-      caption,
-      focusPlayerIds,
-      camera: {
-        scale: clamp(camera.scale, 1, 1.35, 1),
-        focusX: clamp(camera.focusX, 0.12, 0.88, 0.5),
-        focusY: clamp(camera.focusY, 0.12, 0.88, 0.52),
-      },
-    });
+    beats.push({ frameIndex: index, holdMs, caption, focusPlayerIds });
   }
   if (allowFill && beats.length === 0) throw new Error("El spec no tiene beats");
   const durationMs = beats.reduce(
@@ -183,10 +179,6 @@ function normalizeSpec(input, play, allowFill = true) {
     beats,
     motions: [...motionMap.values()].slice(0, 200),
     passes: [...passMap.values()].slice(0, 60),
-    camera: {
-      mode: "fit",
-      padding: Math.min(0.2, Math.max(0.02, Number(input.camera?.padding) || 0.08)),
-    },
     highlights,
     generatedBy: input.generatedBy || "ai",
   };
@@ -214,6 +206,7 @@ export function promptFor(play) {
         hasBall: Boolean(player.hasBall),
       })),
       actions: frame.actions || [],
+      strokes: (frame.strokes || []).length,
     })),
   };
   return `Eres un entrenador de baloncesto y director de animación táctica.
@@ -222,6 +215,7 @@ Vas a convertir una jugada ya dibujada en un guion de animación para una pizarr
 REGLAS OBLIGATORIAS:
 - No inventes ni cambies posiciones de salida o llegada. Los frames son la verdad absoluta.
 - No inventes jugadores ni acciones. Reinterpreta el movimiento que ya existe.
+- Si un frame es de pizarra libre y no tiene jugadores, no inventes motions: describe el bloque en el beat y deja que el dibujo se reproduzca tal cual.
 - Devuelve únicamente JSON válido, sin markdown, sin comentarios.
 - Escribe en español.
 - Cada frame debe tener exactamente un beat.
@@ -251,10 +245,8 @@ CAMPOS DE MOVIMIENTO:
   - "overshoot": 0..0.12 (pequeño exceso al frenar)
 - "passes": una entrada por pase o mano a mano.
   - "toFrame", "fromPlayerId", "toPlayerId", "arc" (0..0.5), "speed" (0.5..2), "spin" (0..3)
-- "beats[].camera": encuadre de cada frame.
-  - "scale": 1..1.35 (zoom suave)
-  - "focusX", "focusY": 0.12..0.88 (centro de atención)
 - "highlights": momentos y jugadores a resaltar.
+- La cámara es FIJA. No devuelvas campos de cámara, zoom ni focus: la pista completa debe verse siempre.
 
 ESQUEMA DE SALIDA:
 {
@@ -266,8 +258,7 @@ ESQUEMA DE SALIDA:
       "frameIndex": 0,
       "holdMs": 700,
       "caption": "texto breve",
-      "focusPlayerIds": ["o1", "o5"],
-      "camera": { "scale": 1.08, "focusX": 0.5, "focusY": 0.45 }
+      "focusPlayerIds": ["o1", "o5"]
     }
   ],
   "motions": [
@@ -294,7 +285,6 @@ ESQUEMA DE SALIDA:
       "spin": 1.1
     }
   ],
-  "camera": { "mode": "fit", "padding": 0.08 },
   "highlights": [
     { "frameIndex": 1, "playerId": "o4", "color": "#f97316" }
   ]

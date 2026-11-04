@@ -15,15 +15,9 @@ import {
   syncActions,
   uid,
 } from "../notation.js";
-import { courtDimensions, renderCourtSvg, renderMiniCourt } from "../court.js";
-import { buildLocalSpec, createPlayback } from "../animation/player.js";
-import {
-  copyText,
-  escapeHtml,
-  openModal,
-  showToast,
-  spinner,
-} from "../ui.js";
+import { courtDimensions, renderCourtSvg, renderMiniCourt, strokeHits, strokePathData } from "../court.js";
+import { openAnimationViewer } from "../animation/viewer.js";
+import { escapeHtml, showToast, spinner } from "../ui.js";
 
 let activeKeyHandler = null;
 let activeVisibilityHandler = null;
@@ -42,6 +36,10 @@ export async function renderEditor(container, params, ctx) {
     play.frames = [createFrame({ label: "Posición inicial" })];
   }
   play.meta = { ...defaultMeta(), ...(play.meta || {}) };
+  for (const frame of play.frames) {
+    frame.strokes = Array.isArray(frame.strokes) ? frame.strokes : [];
+    frame.actions = Array.isArray(frame.actions) ? frame.actions : [];
+  }
 
   const state = {
     play,
@@ -55,6 +53,12 @@ export async function renderEditor(container, params, ctx) {
     saving: false,
     saveTimer: null,
     conflict: false,
+    mode: play.court?.mode === "freehand" ? "freehand" : "players",
+    penColor: "#f97316",
+    penWidth: 6,
+    penTool: "pen",
+    showPlayers: true,
+    showGhostStrokes: true,
   };
 
   container.innerHTML = `
@@ -64,6 +68,10 @@ export async function renderEditor(container, params, ctx) {
         <div class="editor-title">
           <input id="editor-title" value="${escapeHtml(play.title)}" maxlength="100" aria-label="Título de la jugada">
           <span class="editor-sub"><span id="editor-call">${escapeHtml(play.callCode || "Sin código")}</span> · <span id="editor-category">${escapeHtml(play.category || "Ataque")}</span></span>
+        </div>
+        <div class="editor-mode-switch" role="group" aria-label="Modo de edición">
+          <button data-editor-mode="players">Jugadores</button>
+          <button data-editor-mode="freehand">Pizarra</button>
         </div>
         <div class="editor-top-actions">
           <span id="save-status" class="save-status saved">Guardado</span>
@@ -83,7 +91,7 @@ export async function renderEditor(container, params, ctx) {
             <button class="tool-btn" data-action="duplicate-frame"><span>⧉</span> Duplicar bloque</button>
             <button class="tool-btn" data-action="delete-frame"><span>−</span> Eliminar bloque</button>
           </div>
-          <div class="tool-group">
+          <div class="tool-group" data-players-only>
             <h3>Equipos</h3>
             <button class="tool-btn" data-action="toggle-defense" id="toggle-defense">+ Defensa</button>
             <button class="tool-btn" data-action="toggle-offense" id="toggle-offense">+ Ataque</button>
@@ -237,7 +245,32 @@ export async function renderEditor(container, params, ctx) {
     applySnapshot(state.future.pop());
   }
 
+  function setEditorMode(mode) {
+    if (mode !== "players" && mode !== "freehand") return;
+    state.mode = mode;
+    state.play.court = { ...(state.play.court || { type: "half", league: "fiba" }), mode };
+    for (const frame of state.play.frames) {
+      if (mode === "freehand") frame.strokes = Array.isArray(frame.strokes) ? frame.strokes : [];
+    }
+    state.selectedPlayerId = null;
+    markDirty();
+    renderAll();
+  }
+
   function renderAll() {
+    const editor = container.querySelector(".editor-screen");
+    editor?.classList.toggle("mode-freehand", state.mode === "freehand");
+    editor?.classList.toggle("mode-players", state.mode !== "freehand");
+    for (const button of container.querySelectorAll("[data-editor-mode]")) {
+      button.classList.toggle("is-active", button.dataset.editorMode === state.mode);
+    }
+    const shortcutHint = container.querySelector(".shortcuts p:last-child");
+    if (shortcutHint) {
+      shortcutHint.textContent =
+        state.mode === "freehand"
+          ? "Dibuja con el ratón o el dedo. El borrador elimina trazos."
+          : "Arrastra los jugadores para moverlos.";
+    }
     renderBoard();
     renderTimeline();
     renderInspector();
@@ -272,9 +305,13 @@ export async function renderEditor(container, params, ctx) {
       selectedPlayerId: state.selectedPlayerId,
       showGhost: state.frameIndex > 0,
       interactive: true,
+      showPlayers: state.mode !== "freehand" || state.showPlayers,
+      showGhostStrokes: state.mode !== "freehand" || state.showGhostStrokes,
     });
     const svg = boardStage.querySelector("svg");
-    if (svg) bindBoard(svg);
+    if (!svg) return;
+    if (state.mode === "freehand") bindFreehand(svg);
+    else bindBoard(svg);
   }
 
   function bindBoard(svg) {
@@ -342,6 +379,99 @@ export async function renderEditor(container, params, ctx) {
     });
   }
 
+  function bindFreehand(svg) {
+    let drawing = null;
+    let before = null;
+    let livePath = null;
+    const liveLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    liveLayer.setAttribute("class", "freehand-live-layer");
+    svg.appendChild(liveLayer);
+    const dims = courtDimensions(state.play.court || { type: "half" });
+
+    function eraseAt(point) {
+      const frame = currentFrame();
+      const index = (frame.strokes || []).findIndex((stroke) => strokeHits(stroke, point.x, point.y));
+      if (index === -1) return;
+      const snapshotBefore = snapshot();
+      frame.strokes.splice(index, 1);
+      pushHistory(snapshotBefore);
+      markDirty();
+      renderBoard();
+      renderTimeline();
+      renderInspector();
+    }
+
+    svg.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      const point = eventToCourt(svg, event);
+      if (!point) return;
+      if (state.penTool === "eraser") {
+        event.preventDefault();
+        eraseAt(point);
+        return;
+      }
+      event.preventDefault();
+      const frame = currentFrame();
+      frame.strokes = frame.strokes || [];
+      before = snapshot();
+      drawing = {
+        id: uid("s"),
+        tool: state.penTool,
+        color: state.penColor,
+        width: state.penWidth,
+        points: [{ x: Math.max(0, Math.min(1, point.x)), y: Math.max(0, Math.min(1, point.y)) }],
+      };
+      livePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      livePath.setAttribute("class", `freehand-stroke ${state.penTool} live`);
+      livePath.setAttribute("fill", "none");
+      livePath.setAttribute("stroke", state.penColor);
+      livePath.setAttribute("stroke-width", String(state.penWidth));
+      livePath.setAttribute("stroke-linecap", "round");
+      livePath.setAttribute("stroke-linejoin", "round");
+      livePath.setAttribute("opacity", state.penTool === "highlighter" ? "0.36" : "0.95");
+      livePath.setAttribute("d", strokePathData(drawing.points, dims.w, dims.h));
+      liveLayer.appendChild(livePath);
+      svg.setPointerCapture(event.pointerId);
+    });
+
+    svg.addEventListener("pointermove", (event) => {
+      if (!drawing) return;
+      const point = eventToCourt(svg, event);
+      if (!point) return;
+      const x = Math.max(0, Math.min(1, point.x));
+      const y = Math.max(0, Math.min(1, point.y));
+      const last = drawing.points[drawing.points.length - 1];
+      if (Math.hypot(x - last.x, y - last.y) < 0.0015) return;
+      drawing.points.push({ x, y });
+      livePath?.setAttribute("d", strokePathData(drawing.points, dims.w, dims.h));
+    });
+
+    svg.addEventListener("pointerup", () => {
+      if (!drawing) return;
+      const frame = currentFrame();
+      if (drawing.points.length === 1) {
+        const point = drawing.points[0];
+        drawing.points.push({ x: point.x + 0.001, y: point.y + 0.001 });
+      }
+      frame.strokes.push(drawing);
+      pushHistory(before);
+      markDirty();
+      drawing = null;
+      before = null;
+      livePath = null;
+      renderBoard();
+      renderTimeline();
+      renderInspector();
+    });
+
+    svg.addEventListener("pointercancel", () => {
+      drawing = null;
+      before = null;
+      livePath = null;
+      renderBoard();
+    });
+  }
+
   function renderBoardSelection(svg) {
     for (const group of svg.querySelectorAll(".player")) {
       group.classList.toggle("is-selected", group.dataset.playerId === state.selectedPlayerId);
@@ -393,10 +523,87 @@ export async function renderEditor(container, params, ctx) {
     if (state.tab === "play") {
       inspector.innerHTML = playInspectorMarkup(state.play);
       bindPlayInspector();
+    } else if (state.mode === "freehand") {
+      inspector.innerHTML = freehandInspectorMarkup();
+      bindFreehandInspector();
     } else {
       inspector.innerHTML = frameInspectorMarkup();
       bindFrameInspector();
     }
+  }
+
+  function freehandInspectorMarkup() {
+    const frame = currentFrame();
+    const colors = ["#f97316", "#38bdf8", "#22c55e", "#f43f5e", "#f8fafc", "#111827", "#fbbf24"];
+    return `
+      <div class="inspector-section">
+        <span class="eyebrow">Pizarra · bloque ${state.frameIndex + 1} de ${state.play.frames.length}</span>
+        <label class="field"><span>Nombre del bloque</span><input data-frame-field="label" value="${escapeHtml(frame.label || "")}" maxlength="80"></label>
+        <label class="field"><span>Nota del bloque</span><textarea data-frame-field="note" rows="3" placeholder="Qué se dibuja o explica en este bloque…">${escapeHtml(frame.note || "")}</textarea></label>
+        <label class="field"><span>Duración de la transición</span><input data-frame-field="durationMs" type="number" min="300" max="4000" step="100" value="${Number(frame.durationMs) || 900}"></label>
+      </div>
+      <div class="inspector-section">
+        <span class="eyebrow">Herramientas de pizarra</span>
+        <div class="pen-tool-row">
+          <button class="pen-tool ${state.penTool === "pen" ? "is-active" : ""}" data-pen-tool="pen">Lápiz</button>
+          <button class="pen-tool ${state.penTool === "highlighter" ? "is-active" : ""}" data-pen-tool="highlighter">Rotulador</button>
+          <button class="pen-tool ${state.penTool === "eraser" ? "is-active" : ""}" data-pen-tool="eraser">Borrar</button>
+        </div>
+        <div class="pen-color-row">
+          ${colors.map((color) => `<button class="pen-color ${state.penColor === color ? "is-active" : ""}" data-pen-color="${color}" style="--pen-color:${color}" aria-label="Color ${color}"></button>`).join("")}
+        </div>
+        <label class="field pen-width-field"><span>Grosor · <b id="pen-width-label">${state.penWidth}</b></span><input data-pen-width type="range" min="2" max="16" step="1" value="${state.penWidth}"></label>
+        <label class="check-row"><input type="checkbox" data-show-players ${state.showPlayers ? "checked" : ""}> Mostrar jugadores de referencia</label>
+        <label class="check-row"><input type="checkbox" data-show-ghost ${state.showGhostStrokes ? "checked" : ""}> Ver trazos del bloque anterior</label>
+        <button class="btn btn-ghost btn-wide" data-clear-strokes>Borrar trazos del bloque</button>
+        <p class="hint">Dibuja con el ratón o el dedo. Cada bloque guarda sus propios trazos y la animación los reproduce en secuencia.</p>
+      </div>
+    `;
+  }
+
+  function bindFreehandInspector() {
+    inspector.querySelectorAll("[data-frame-field]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const field = input.dataset.frameField;
+        if (field === "durationMs") currentFrame().durationMs = Number(input.value) || 900;
+        else currentFrame()[field] = input.value;
+        markDirty();
+        if (field === "label") renderTimeline();
+      });
+    });
+    inspector.querySelectorAll("[data-pen-tool]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.penTool = button.dataset.penTool;
+        renderInspector();
+      });
+    });
+    inspector.querySelectorAll("[data-pen-color]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.penColor = button.dataset.penColor;
+        renderInspector();
+      });
+    });
+    inspector.querySelector("[data-pen-width]")?.addEventListener("input", (event) => {
+      state.penWidth = Number(event.target.value) || 6;
+      const label = inspector.querySelector("#pen-width-label");
+      if (label) label.textContent = String(state.penWidth);
+    });
+    inspector.querySelector("[data-show-players]")?.addEventListener("change", (event) => {
+      state.showPlayers = event.target.checked;
+      renderBoard();
+    });
+    inspector.querySelector("[data-show-ghost]")?.addEventListener("change", (event) => {
+      state.showGhostStrokes = event.target.checked;
+      renderBoard();
+    });
+    inspector.querySelector("[data-clear-strokes]")?.addEventListener("click", () => {
+      if (!currentFrame().strokes?.length) return;
+      const before = snapshot();
+      currentFrame().strokes = [];
+      pushHistory(before);
+      markDirty();
+      renderAll();
+    });
   }
 
   function frameInspectorMarkup() {
@@ -638,32 +845,10 @@ export async function renderEditor(container, params, ctx) {
   }
 
   function openPreview() {
-    const spec = buildLocalSpec(state.play);
-    let previewPlayback = null;
-    const modal = openModal(
-      `<div class="modal-head"><div><span class="eyebrow">Vista previa</span><h2>${escapeHtml(state.play.title)}</h2></div><button class="icon-btn" data-close aria-label="Cerrar">×</button></div>
-       <div class="preview-stage"><canvas class="preview-canvas" width="1000" height="780"></canvas></div>
-       <div class="animation-controls"><button class="btn btn-primary" id="preview-play">Reproducir</button><input id="preview-scrub" type="range" min="0" max="1000" value="0"><select id="preview-speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></div>`,
-      {
-        onMount(element, close) {
-          const playback = createPlayback(element.querySelector(".preview-canvas"), state.play, spec, {
-            loop: true,
-            onStateChange(playing, time, total) {
-              element.querySelector("#preview-play").textContent = playing ? "Pausar" : "Reproducir";
-              if (total > 0) element.querySelector("#preview-scrub").value = String(Math.round((time / total) * 1000));
-            },
-          });
-          element.querySelector("#preview-play").addEventListener("click", () => playback.toggle());
-          element.querySelector("#preview-scrub").addEventListener("input", (event) => playback.seek((Number(event.target.value) / 1000) * playback.timeline.total));
-          element.querySelector("#preview-speed").addEventListener("change", (event) => playback.setSpeed(Number(event.target.value)));
-          previewPlayback = playback;
-        },
-        onClose() {
-          if (previewPlayback) previewPlayback.destroy();
-        },
-      },
-    );
-    void modal;
+    openAnimationViewer(state.play, {
+      mode: "local",
+      allowModes: false,
+    });
   }
 
   container.addEventListener("click", (event) => {
@@ -704,6 +889,9 @@ export async function renderEditor(container, params, ctx) {
       renderInspector();
     });
   });
+  container.querySelectorAll("[data-editor-mode]").forEach((button) => {
+    button.addEventListener("click", () => setEditorMode(button.dataset.editorMode));
+  });
 
   if (activeKeyHandler) document.removeEventListener("keydown", activeKeyHandler);
   activeKeyHandler = (event) => {
@@ -730,7 +918,6 @@ export async function renderEditor(container, params, ctx) {
   document.addEventListener("visibilitychange", activeVisibilityHandler);
 
   renderAll();
-  void copyText;
   void cloneFrames;
   void ctx;
 }

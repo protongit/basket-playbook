@@ -219,6 +219,63 @@ function zigzag(x1, y1, x2, y2, segments = 8, amplitude = 15) {
   return `M ${points.join(" L ")}`;
 }
 
+
+export function strokePathData(points = [], width = 1000, height = 1000) {
+  if (!Array.isArray(points) || points.length === 0) return "";
+  const pts = points.filter(
+    (point) => Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y)),
+  );
+  if (!pts.length) return "";
+  if (pts.length === 1) {
+    const { x, y } = pts[0];
+    return `M ${x * width} ${y * height} L ${x * width + 0.01} ${y * height + 0.01}`;
+  }
+  let d = `M ${pts[0].x * width} ${pts[0].y * height}`;
+  for (let index = 1; index < pts.length - 1; index += 1) {
+    const current = pts[index];
+    const next = pts[index + 1];
+    const midX = ((current.x + next.x) / 2) * width;
+    const midY = ((current.y + next.y) / 2) * height;
+    d += ` Q ${current.x * width} ${current.y * height} ${midX} ${midY}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L ${last.x * width} ${last.y * height}`;
+  return d;
+}
+
+export function strokeHits(stroke, x, y, tolerance = 0.026) {
+  const points = stroke?.points || [];
+  for (let index = 1; index < points.length; index += 1) {
+    const a = points[index - 1];
+    const b = points[index];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lengthSq = dx * dx + dy * dy;
+    const t = lengthSq ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / lengthSq)) : 0;
+    const px = a.x + dx * t;
+    const py = a.y + dy * t;
+    if (Math.hypot(x - px, y - py) <= tolerance) return true;
+  }
+  return points.length === 1 && Math.hypot(x - points[0].x, y - points[0].y) <= tolerance;
+}
+
+function strokesMarkup(strokes = [], { ghost = false, width = 1000, height = 1000 } = {}) {
+  if (!Array.isArray(strokes) || !strokes.length) return "";
+  return strokes
+    .map((stroke) => {
+      const points = stroke.points || [];
+      if (!points.length) return "";
+      const color = /^#[0-9a-f]{6}$/i.test(stroke.color) ? stroke.color : "#f97316";
+      const strokeWidth = Math.min(30, Math.max(1, Number(stroke.width) || 6));
+      const highlighter = stroke.tool === "highlighter";
+      return `<path class="freehand-stroke ${highlighter ? "highlighter" : "pen"}${ghost ? " ghost" : ""}"
+        d="${strokePathData(points, width, height)}" fill="none" stroke="${color}"
+        stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"
+        opacity="${ghost ? 0.2 : highlighter ? 0.36 : 0.95}" pointer-events="none"/>`;
+    })
+    .join("");
+}
+
 function actionMarkup(frame, previousFrame, court, selectedPlayerId, ballId) {
   if (!previousFrame) return "";
   const dimensions = courtDimensions(court);
@@ -309,6 +366,9 @@ export function renderCourtSvg({
   interactive = true,
   mini = false,
   className = "",
+  showPlayers = true,
+  showStrokes = true,
+  showGhostStrokes = true,
 }) {
   const dimensions = courtDimensions(court);
   const id = svgId();
@@ -321,13 +381,15 @@ export function renderCourtSvg({
     <rect class="court-floor" x="0" y="0" width="${dimensions.w}" height="${dimensions.h}" fill="url(#wood-${id})"/>
     <rect class="court-floor-shade" x="0" y="0" width="${dimensions.w}" height="${dimensions.h}" fill="url(#court-shade-${id})"/>
     <g class="court-lines">${court.type === "full" ? fullMarkings() : halfMarkings()}</g>
-    ${ghost
-      .map((player) => playerMarkup(player, dimensions, null, true, null))
-      .join("")}
+    ${showPlayers
+      ? ghost.map((player) => playerMarkup(player, dimensions, null, true, null)).join("")
+      : ""}
+    ${previousFrame && showGhostStrokes ? strokesMarkup(previousFrame.strokes || [], { ghost: true, width: dimensions.w, height: dimensions.h }) : ""}
     ${actionMarkup(frame, previousFrame, court, selectedPlayerId, id)}
-    ${frame.players
-      .map((player) => playerMarkup(player, dimensions, selectedPlayerId, false, id))
-      .join("")}
+    ${showStrokes ? strokesMarkup(frame.strokes || [], { width: dimensions.w, height: dimensions.h }) : ""}
+    ${showPlayers
+      ? frame.players.map((player) => playerMarkup(player, dimensions, selectedPlayerId, false, id)).join("")
+      : ""}
     ${mini ? "" : `<text class="court-league" x="${dimensions.w - 24}" y="${dimensions.h - 16}" text-anchor="end">${(court.league || "fiba").toUpperCase()}</text>`}
   </svg>`;
 }
@@ -341,6 +403,7 @@ export function renderMiniCourt(frame, court = { type: "half" }) {
     <rect class="court-floor" width="${dimensions.w}" height="${dimensions.h}" fill="url(#wood-${id})"/>
     <rect class="court-floor-shade" width="${dimensions.w}" height="${dimensions.h}" fill="url(#court-shade-${id})"/>
     <g class="court-lines">${(court.type === "full" ? fullMarkings() : halfMarkings()).replace(/<text[\s\S]*?<\/text>/g, "")}</g>
+    ${strokesMarkup(frame.strokes || [], { width: dimensions.w, height: dimensions.h })}
     ${frame.players
       .map((player) => {
         const x = player.x * dimensions.w;

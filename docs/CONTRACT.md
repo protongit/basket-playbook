@@ -20,7 +20,7 @@ share_links(id, user_id, play_id, token_hash UNIQUE, expires_at, created_at)
 ### JSON
 
 ```ts
-Court = { type: "half"|"full", league: "fiba"|"nba"|"ncaa" }
+Court = { type: "half"|"full", league: "fiba"|"nba"|"ncaa", mode: "players"|"freehand" }
 
 Meta = {
   objective: string,
@@ -52,7 +52,16 @@ Frame = {
   note: string,
   durationMs: number,       // 300..4000
   players: Player[],
-  actions: Action[]
+  actions: Action[],
+  strokes: Stroke[]
+}
+
+Stroke = {
+  id: string,
+  tool: "pen"|"highlighter",
+  color: string,            // #rrggbb
+  width: number,            // 2..16
+  points: [{ x, y }]        // coordenadas normalizadas
 }
 
 Animation = {
@@ -70,13 +79,7 @@ AnimationSpec = {
   generatedBy: "ai"|"fallback",
   durationMs: number,
   fps: 24..60,
-  beats: [{
-    frameIndex,
-    holdMs,
-    caption,
-    focusPlayerIds,
-    camera: { scale: 1..1.35, focusX, focusY }
-  }],
+  beats: [{ frameIndex, holdMs, caption, focusPlayerIds }],
   motions: [{
     playerId,
     toFrame,
@@ -93,7 +96,6 @@ AnimationSpec = {
     toFrame, fromPlayerId, toPlayerId,
     arc: 0..0.5, speed: 0.5..2, spin: 0..3
   }],
-  camera: { mode: "fit", padding },
   highlights: [{ frameIndex, playerId, color }]
 }
 ```

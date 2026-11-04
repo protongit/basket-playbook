@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { renderCourtSvg } from "../court.js";
 import { createPlayback, buildLocalSpec } from "../animation/player.js";
+import { openAnimationViewer } from "../animation/viewer.js";
 import { ACTION_TYPES, formatDuration, metaList } from "../notation.js";
 import {
   confirmDialog,
@@ -80,10 +81,13 @@ export async function renderPlay(container, params, ctx) {
           </div>
           <div class="animation-foot">
             <div class="animation-note" id="animation-note">
-              ${play.animation?.source === "ai" ? `Generada con <strong>${escapeHtml(play.animation.model || "IA")}</strong>.` : "Animación local determinista. Genera con IA para añadir ritmo, cámara y énfasis."}
+              ${play.animation?.source === "ai" ? `Generada con <strong>${escapeHtml(play.animation.model || "IA")}</strong>.` : "Animación local determinista. Genera con IA para añadir curvas, pausas y tiempos más reales."}
               ${play.animation?.error ? `<span class="warn-text">${escapeHtml(play.animation.error)}</span>` : ""}
             </div>
-            <button class="btn btn-accent" id="generate-animation">Generar con IA</button>
+            <div class="animation-foot-actions">
+              <button class="btn btn-ghost" id="expand-animation">Ampliar</button>
+              <button class="btn btn-accent" id="generate-animation">Generar con IA</button>
+            </div>
           </div>
           ${play.updatedAt > (play.animation?.generatedAt || "") && play.animation ? '<div class="stale-badge">La jugada cambió después de generar la animación.</div>' : ""}
         </article>
@@ -167,11 +171,11 @@ export async function renderPlay(container, params, ctx) {
     const note = container.querySelector("#animation-note");
     if (!note) return;
     if (animationMode === "ai" && play.animation?.spec && play.animation.source === "ai") {
-      note.innerHTML = `Movimiento reinterpretado por <strong>${escapeHtml(play.animation.model || "la IA")}</strong>: curvas, tiempos, pausas y cámara.`;
+      note.innerHTML = `Movimiento reinterpretado por <strong>${escapeHtml(play.animation.model || "la IA")}</strong>: curvas, tiempos y pausas de movimiento real.`;
     } else if (play.animation?.source === "fallback") {
       note.innerHTML = `La IA no pudo reinterpretar la jugada; se muestra la animación local.${play.animation.error ? `<span class="warn-text">${escapeHtml(play.animation.error)}</span>` : ""}`;
     } else {
-      note.innerHTML = "Animación local determinista: interpolación directa entre bloques. Genera con IA para ver la reinterpretación con curvas, pausas y cámara.";
+      note.innerHTML = "Animación local determinista: interpolación directa entre bloques. Genera con IA para ver la reinterpretación con curvas y pausas.";
     }
   }
 
@@ -226,6 +230,12 @@ export async function renderPlay(container, params, ctx) {
     } catch (error) {
       showToast(error.message, "error");
     }
+  });
+  container.querySelector("#expand-animation").addEventListener("click", () => {
+    openAnimationViewer(play, {
+      mode: animationMode,
+      allowModes: play.animation?.source === "ai",
+    });
   });
   container.querySelector("#generate-animation").addEventListener("click", async (event) => {
     const button = event.currentTarget;

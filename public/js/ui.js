@@ -48,7 +48,7 @@ export function showToast(message, type = "info") {
 export function openModal(content, options = {}) {
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
-  backdrop.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${content}</div>`;
+  backdrop.innerHTML = `<div class="modal ${options.className || ""}" role="dialog" aria-modal="true">${content}</div>`;
   document.body.appendChild(backdrop);
   const close = () => {
     backdrop.classList.add("is-closing");

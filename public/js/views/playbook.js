@@ -138,6 +138,7 @@ function openAddPlay(playbook, plays, ctx) {
         <label class="field"><span>Categoría</span><select name="category">${CATEGORIES.map((category) => `<option>${category}</option>`).join("")}</select></label>
         <label class="field"><span>Subcategoría</span><input name="subcategory" placeholder="Bloqueo directo" maxlength="80"></label>
       </div>
+      <label class="field"><span>Modo de edición</span><select name="mode"><option value="players">Jugadores y acciones</option><option value="freehand">Pizarra libre (dibujo a mano alzada)</option></select></label>
       <div class="modal-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary" type="submit">Crear y abrir editor</button></div>
      </form>`,
     {
@@ -148,9 +149,26 @@ function openAddPlay(playbook, plays, ctx) {
           const button = form.querySelector("button[type=submit]");
           button.disabled = true;
           try {
+            const values = Object.fromEntries(new FormData(form));
+            const mode = values.mode;
+            delete values.mode;
+            if (mode === "freehand") {
+              values.court = { type: "half", league: "fiba", mode: "freehand" };
+              values.frames = [{
+                id: `f-${Date.now()}`,
+                label: "Bloque 1",
+                note: "",
+                durationMs: 900,
+                players: [],
+                actions: [],
+                strokes: [],
+              }];
+            } else {
+              values.court = { type: "half", league: "fiba", mode: "players" };
+            }
             const { play } = await api(`/playbooks/${playbook.id}/plays`, {
               method: "POST",
-              body: Object.fromEntries(new FormData(form)),
+              body: values,
             });
             close();
             showToast("Jugada creada", "success");

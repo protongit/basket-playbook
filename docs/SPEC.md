@@ -16,8 +16,8 @@ Herramienta web para entrenadores de baloncesto que convierte una pizarra tácti
 1. Registrarse o entrar.
 2. Crear un playbook.
 3. Añadir una jugada con nombre, código, categoría y capítulo.
-4. Abrir el editor y definir el bloque inicial.
-5. Añadir bloques, mover jugadores y marcar acciones.
+4. Abrir el editor y elegir modo Jugadores o Pizarra libre.
+5. Añadir bloques, mover jugadores y marcar acciones, o dibujar trazos a mano alzada.
 6. Completar la ficha táctica: objetivo, lecturas, contras, coaching y etiquetas.
 7. Reproducir la animación local.
 8. Generar la animación con IA y guardarla en la ficha.
@@ -29,7 +29,7 @@ Herramienta web para entrenadores de baloncesto que convierte una pizarra tácti
 - **Mis playbooks**
 - **Playbook**: capítulos, jugadas, orden, búsqueda, impresión.
 - **Ficha de jugada**: pizarra, frames, animación, metadata, compartir.
-- **Editor**: pista, jugadores, inspector, timeline, autosave.
+- **Editor**: pista, jugadores, inspector, timeline, autosave y modo pizarra libre.
 - **Vista pública** de solo lectura.
 - **Vista de impresión**.
 
@@ -47,7 +47,7 @@ Contenedor de jugadas con:
 - título, código de llamada, categoría, subcategoría, capítulo;
 - pista: `half|full`, `fiba|nba|ncaa`;
 - metadata: objetivo, personal clave, lecturas, contras, coaching, tags;
-- frames y animación.
+- frames y animación; cada frame puede tener jugadores, acciones y/o trazos libres.
 
 ### Frame
 
@@ -76,7 +76,7 @@ La acción se asigna a un jugador; el destino de un pase se deriva del portador 
 
 - Modo local determinista: siempre disponible.
 - Modo IA: el servidor envía la jugada a nan.builders y recibe un `AnimationSpec` validado.
-- La IA reinterpreta el movimiento: elige curvas, aceleración/frenada, retrasos, pausas de bloqueo, arcos de pase y encuadre de cámara.
+- La IA reinterpreta el movimiento: elige curvas, aceleración/frenada, retrasos, pausas de bloqueo y arcos de pase. La cámara es fija y la pista se muestra siempre completa.
 - El motor de canvas renderiza pista FIBA realista, jugadores, estelas, balón con costuras, captions y controles.
 - La IA no puede cambiar posiciones de salida o llegada ni inventar jugadores.
 - La ficha permite comparar la animación IA con la animación local determinista.

@@ -14,6 +14,7 @@ function frame(label, note, players, actions = [], durationMs = 900) {
     durationMs,
     players,
     actions,
+    strokes: [],
   };
 }
 

@@ -1,6 +1,7 @@
 import { publicApi } from "../api.js";
 import { renderCourtSvg } from "../court.js";
 import { createPlayback, buildLocalSpec } from "../animation/player.js";
+import { openAnimationViewer } from "../animation/viewer.js";
 import { formatDuration, metaList } from "../notation.js";
 import { escapeHtml, spinner } from "../ui.js";
 
@@ -41,7 +42,7 @@ export async function renderPublic(container, params) {
       </article>
       <aside class="public-side">
         <article class="panel animation-panel">
-          <div class="panel-head"><div><span class="eyebrow">Animación</span><h2>Movimiento</h2></div></div>
+          <div class="panel-head"><div><span class="eyebrow">Animación</span><h2>Movimiento</h2></div><button class="btn btn-ghost btn-small" id="public-expand">Ampliar</button></div>
           <div class="animation-stage">
             <canvas id="animation-canvas" width="1000" height="780"></canvas>
             <div class="animation-controls">
@@ -98,6 +99,12 @@ export async function renderPublic(container, params) {
   container.querySelector("#anim-scrub").oninput = (event) =>
     playback.seek((Number(event.target.value) / 1000) * playback.timeline.total);
   container.querySelector("#anim-speed").onchange = (event) => playback.setSpeed(Number(event.target.value));
+  container.querySelector("#public-expand").addEventListener("click", () => {
+    openAnimationViewer(play, {
+      mode: play.animation?.source === "ai" ? "ai" : "local",
+      allowModes: play.animation?.source === "ai",
+    });
+  });
 }
 
 function metaSection(title, value) {

@@ -16,9 +16,10 @@ export function defaultFrame() {
     durationMs: 900,
     players: defaultPlayers(),
     actions: [],
+    strokes: [],
   };
 }
 
 export function defaultCourt() {
-  return { type: "half", league: "fiba" };
+  return { type: "half", league: "fiba", mode: "players" };
 }

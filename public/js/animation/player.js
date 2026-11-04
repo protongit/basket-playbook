@@ -13,11 +13,9 @@ export function buildLocalSpec(play) {
       holdMs: index === 0 ? 900 : Math.max(350, Number(frame.durationMs) || 900),
       caption: frame.label || frame.note || `Bloque ${index + 1}`,
       focusPlayerIds: [],
-      camera: { scale: 1, focusX: 0.5, focusY: 0.52 },
     })),
     motions: [],
     passes: [],
-    camera: { mode: "fit", padding: 0.08 },
     highlights: [],
   };
 }
@@ -26,21 +24,11 @@ export function normalizeSpec(play, spec) {
   if (!spec || !Array.isArray(spec.beats) || !spec.beats.length) return buildLocalSpec(play);
   const beats = play.frames.map((frame, index) => {
     const source = spec.beats.find((beat) => Number(beat.frameIndex) === index) || {};
-    const camera = source.camera || {};
-    const clamp = (value, min, max, fallback) => {
-      const number = Number(value);
-      return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
-    };
     return {
       frameIndex: index,
       holdMs: Math.min(4000, Math.max(250, Number(source.holdMs) || 700)),
       caption: String(source.caption || frame.label || frame.note || "").slice(0, 140),
       focusPlayerIds: Array.isArray(source.focusPlayerIds) ? source.focusPlayerIds : [],
-      camera: {
-        scale: clamp(camera.scale, 1, 1.35, 1),
-        focusX: clamp(camera.focusX, 0.12, 0.88, 0.5),
-        focusY: clamp(camera.focusY, 0.12, 0.88, 0.52),
-      },
     };
   });
   return { ...spec, beats };
@@ -158,17 +146,6 @@ export function interpolatePlayers(play, spec, fromIndex, toIndex, rawProgress) 
       motion,
     };
   });
-}
-
-function cameraAt(spec, fromIndex, toIndex, rawProgress) {
-  const from = spec?.beats?.[fromIndex]?.camera || { scale: 1, focusX: 0.5, focusY: 0.52 };
-  const to = spec?.beats?.[toIndex]?.camera || from;
-  const progress = fromIndex === toIndex ? 0 : EASE.easeInOut(clamp01(rawProgress));
-  return {
-    scale: Number(from.scale) + (Number(to.scale) - Number(from.scale)) * progress,
-    focusX: Number(from.focusX) + (Number(to.focusX) - Number(from.focusX)) * progress,
-    focusY: Number(from.focusY) + (Number(to.focusY) - Number(from.focusY)) * progress,
-  };
 }
 
 function drawRounded(ctx, x, y, width, height, radius, fill) {
@@ -464,6 +441,46 @@ function drawBall(ctx, x, y, scale, rotation = 0) {
   ctx.restore();
 }
 
+
+function drawStrokeSet(ctx, strokes = [], scale, ox, oy, courtType, alpha = 1, partial = 1) {
+  if (!Array.isArray(strokes) || !strokes.length || alpha <= 0) return;
+  const dims = courtDimensions({ type: courtType });
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const stroke of strokes) {
+    const points = stroke.points || [];
+    if (points.length < 2) continue;
+    const count = Math.max(1, Math.floor(points.length * clamp01(partial)));
+    if (count < 2) continue;
+    const visible = points.slice(0, count);
+    const color = /^#[0-9a-f]{6}$/i.test(stroke.color) ? stroke.color : "#f97316";
+    const highlighter = stroke.tool === "highlighter";
+    ctx.globalAlpha = alpha * (highlighter ? 0.36 : 0.95);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, Math.min(30, Number(stroke.width) || 6) * scale);
+    ctx.beginPath();
+    ctx.moveTo(ox + visible[0].x * dims.w * scale, oy + visible[0].y * dims.h * scale);
+    for (let index = 1; index < visible.length - 1; index += 1) {
+      const current = visible[index];
+      const next = visible[index + 1];
+      const midX = ox + ((current.x + next.x) / 2) * dims.w * scale;
+      const midY = oy + ((current.y + next.y) / 2) * dims.h * scale;
+      ctx.quadraticCurveTo(
+        ox + current.x * dims.w * scale,
+        oy + current.y * dims.h * scale,
+        midX,
+        midY,
+      );
+    }
+    const last = visible[visible.length - 1];
+    ctx.lineTo(ox + last.x * dims.w * scale, oy + last.y * dims.h * scale);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+
 function drawTrails(ctx, fromFrame, toFrame, scale, ox, oy, courtType) {
   const dims = courtDimensions({ type: courtType });
   ctx.save();
@@ -520,19 +537,16 @@ export function drawFrame(ctx, play, spec, time = 0) {
   const courtHeight = dimensions.h * scale;
   const ox = area.x + (area.w - courtWidth) / 2;
   const oy = area.y + (area.h - courtHeight) / 2;
-  const camera = cameraAt(timeline.spec, state.from, state.to, state.rawProgress);
 
+  // Cámara fija: la pista completa queda siempre dentro del lienzo.
   ctx.save();
-  ctx.translate(width / 2, height / 2);
-  ctx.scale(camera.scale, camera.scale);
-  ctx.translate(
-    -(ox + camera.focusX * dimensions.w * scale),
-    -(oy + camera.focusY * dimensions.h * scale),
-  );
-
   drawCourt(ctx, play, area);
   if (state.rawProgress > 0) {
     drawTrails(ctx, fromFrame, toFrame, scale, ox, oy, play.court.type);
+    drawStrokeSet(ctx, fromFrame.strokes || [], scale, ox, oy, play.court.type, 1 - state.rawProgress, 1);
+    drawStrokeSet(ctx, toFrame.strokes || [], scale, ox, oy, play.court.type, state.rawProgress, state.rawProgress);
+  } else {
+    drawStrokeSet(ctx, toFrame.strokes || [], scale, ox, oy, play.court.type, 1, 1);
   }
   const players = interpolatePlayers(play, timeline.spec, state.from, state.to, state.rawProgress);
   const dims = courtDimensions(play.court);
