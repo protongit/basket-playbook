@@ -170,7 +170,7 @@ node scripts/seed-common.mjs <email>
 node scripts/backup-db.mjs
 ```
 
-`seed-common.mjs` añade el playbook **Jugadas habituales** (Spain PnR, Horns Flare, Pistol/Zoom, Chicago, UCLA, Floppy, Zipper SLOB, Hammer y 2-3) a una cuenta existente. `backup-db.mjs` crea una copia en `backups/` o en `BACKUP_DIR`.
+`seed-common.mjs` añade el playbook **Jugadas habituales** (Spain PnR, Horns Flare, Pistol/Zoom, Chicago, UCLA, Floppy, Zipper SLOB, Hammer y 2-3) a una cuenta existente. Contenido y fuentes en [`docs/COMMON-PLAYS.md`](docs/COMMON-PLAYS.md). `backup-db.mjs` crea una copia en `backups/` o en `BACKUP_DIR`.
 
 ## Estructura
 
