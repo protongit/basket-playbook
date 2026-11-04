@@ -96,6 +96,12 @@ AnimationSpec = {
     toFrame, fromPlayerId, toPlayerId,
     arc: 0..0.5, speed: 0.5..2, spin: 0..3
   }],
+  strokeTypes: [{
+    frameIndex,
+    strokeId,
+    type: "cut"|"dribble"|"pass"|"screen"|"handoff"|"shot"|"roll"|"pop"|"rotation"|"freehand"|"note",
+    label: string
+  }],
   highlights: [{ frameIndex, playerId, color }]
 }
 ```

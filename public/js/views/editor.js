@@ -556,7 +556,7 @@ export async function renderEditor(container, params, ctx) {
         <label class="check-row"><input type="checkbox" data-show-players ${state.showPlayers ? "checked" : ""}> Mostrar jugadores de referencia</label>
         <label class="check-row"><input type="checkbox" data-show-ghost ${state.showGhostStrokes ? "checked" : ""}> Ver trazos del bloque anterior</label>
         <button class="btn btn-ghost btn-wide" data-clear-strokes>Borrar trazos del bloque</button>
-        <p class="hint">Dibuja con el ratón o el dedo. Cada bloque guarda sus propios trazos y la animación los reproduce en secuencia.</p>
+        <p class="hint">Dibuja con el ratón o el dedo. Cada bloque guarda sus propios trazos. Al generar con IA, la app interpreta los trazos como corte, pase, bloqueo, tiro o rotación.</p>
       </div>
     `;
   }

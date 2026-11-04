@@ -170,8 +170,9 @@ export async function renderPlay(container, params, ctx) {
   function updateAnimationNote() {
     const note = container.querySelector("#animation-note");
     if (!note) return;
+    const hasStrokes = play.frames.some((frame) => (frame.strokes || []).length);
     if (animationMode === "ai" && play.animation?.spec && play.animation.source === "ai") {
-      note.innerHTML = `Movimiento reinterpretado por <strong>${escapeHtml(play.animation.model || "la IA")}</strong>: curvas, tiempos y pausas de movimiento real.`;
+      note.innerHTML = `Movimiento reinterpretado por <strong>${escapeHtml(play.animation.model || "la IA")}</strong>: curvas, tiempos y pausas de movimiento real.${hasStrokes ? " Los trazos de pizarra se convierten en corte, pase, bloqueo, tiro o rotación." : ""}`;
     } else if (play.animation?.source === "fallback") {
       note.innerHTML = `La IA no pudo reinterpretar la jugada; se muestra la animación local.${play.animation.error ? `<span class="warn-text">${escapeHtml(play.animation.error)}</span>` : ""}`;
     } else {

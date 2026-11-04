@@ -19,6 +19,19 @@ const PATHS = new Set([
   "pop",
   "screen",
 ]);
+const STROKE_TYPES = new Set([
+  "cut",
+  "dribble",
+  "pass",
+  "screen",
+  "handoff",
+  "shot",
+  "roll",
+  "pop",
+  "rotation",
+  "freehand",
+  "note",
+]);
 
 function clamp(value, min, max, fallback = min) {
   const number = Number(value);
@@ -54,6 +67,55 @@ export function playHash(play) {
     meta: play.meta,
   });
   return crypto.createHash("sha256").update(payload).digest("hex");
+}
+
+function samplePoints(points = [], max = 10) {
+  const list = points.filter(
+    (point) => Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y)),
+  );
+  if (list.length <= max) return list.map((point) => [Number(point.x.toFixed(3)), Number(point.y.toFixed(3))]);
+  const step = (list.length - 1) / (max - 1);
+  return Array.from({ length: max }, (_, index) => {
+    const point = list[Math.round(index * step)];
+    return [Number(point.x.toFixed(3)), Number(point.y.toFixed(3))];
+  });
+}
+
+function strokeSummary(strokes = []) {
+  return strokes.map((stroke) => {
+    const points = stroke.points || [];
+    const first = points[0] || { x: 0, y: 0 };
+    const last = points[points.length - 1] || first;
+    const xs = points.map((point) => Number(point.x));
+    const ys = points.map((point) => Number(point.y));
+    return {
+      id: stroke.id,
+      tool: stroke.tool || "pen",
+      color: stroke.color,
+      width: stroke.width,
+      points: samplePoints(points, 10),
+      start: [Number(first.x.toFixed(3)), Number(first.y.toFixed(3))],
+      end: [Number(last.x.toFixed(3)), Number(last.y.toFixed(3))],
+      bbox: xs.length
+        ? [
+            Number(Math.min(...xs).toFixed(3)),
+            Number(Math.min(...ys).toFixed(3)),
+            Number(Math.max(...xs).toFixed(3)),
+            Number(Math.max(...ys).toFixed(3)),
+          ]
+        : null,
+      length: Number(
+        points
+          .slice(1)
+          .reduce(
+            (total, point, index) =>
+              total + Math.hypot(point.x - points[index].x, point.y - points[index].y),
+            0,
+          )
+          .toFixed(3),
+      ),
+    };
+  });
 }
 
 function fallbackSpec(play) {
@@ -171,6 +233,27 @@ function normalizeSpec(input, play, allowFill = true) {
     });
   }
 
+  const validStrokes = new Map();
+  for (let index = 0; index < frameCount; index += 1) {
+    for (const stroke of play.frames[index].strokes || []) {
+      if (stroke?.id) validStrokes.set(`${index}:${stroke.id}`, { frameIndex: index, strokeId: stroke.id });
+    }
+  }
+  const strokeMap = new Map();
+  for (const source of Array.isArray(input.strokeTypes) ? input.strokeTypes : []) {
+    const frameIndex = Number(source.frameIndex);
+    const strokeId = String(source.strokeId || "");
+    const key = `${frameIndex}:${strokeId}`;
+    if (!validStrokes.has(key)) continue;
+    if (!STROKE_TYPES.has(source.type)) continue;
+    strokeMap.set(key, {
+      frameIndex,
+      strokeId,
+      type: source.type,
+      label: String(source.label || "").replace(/\s+/g, " ").slice(0, 40),
+    });
+  }
+
   return {
     title: String(input.title || play.title).slice(0, 120),
     style: "whiteboard",
@@ -179,6 +262,7 @@ function normalizeSpec(input, play, allowFill = true) {
     beats,
     motions: [...motionMap.values()].slice(0, 200),
     passes: [...passMap.values()].slice(0, 60),
+    strokeTypes: [...strokeMap.values()].slice(0, 200),
     highlights,
     generatedBy: input.generatedBy || "ai",
   };
@@ -206,7 +290,7 @@ export function promptFor(play) {
         hasBall: Boolean(player.hasBall),
       })),
       actions: frame.actions || [],
-      strokes: (frame.strokes || []).length,
+      strokes: strokeSummary(frame.strokes || []),
     })),
   };
   return `Eres un entrenador de baloncesto y director de animación táctica.
@@ -215,7 +299,8 @@ Vas a convertir una jugada ya dibujada en un guion de animación para una pizarr
 REGLAS OBLIGATORIAS:
 - No inventes ni cambies posiciones de salida o llegada. Los frames son la verdad absoluta.
 - No inventes jugadores ni acciones. Reinterpreta el movimiento que ya existe.
-- Si un frame es de pizarra libre y no tiene jugadores, no inventes motions: describe el bloque en el beat y deja que el dibujo se reproduzca tal cual.
+- Si un frame tiene trazos de pizarra libre, actúa como entrenador: interpreta cada trazo y devuelve una entrada en "strokeTypes" con su id exacto y el elemento táctico que representa. No inventes trazos ni ids.
+- Si un frame no tiene jugadores, no inventes motions: describe el bloque en el beat y usa "strokeTypes" para darle notación táctica.
 - Devuelve únicamente JSON válido, sin markdown, sin comentarios.
 - Escribe en español.
 - Cada frame debe tener exactamente un beat.
@@ -232,6 +317,22 @@ Haz que la jugada parezca un partido real, no una interpolación lineal. Para ca
 - Un corte puede ser recto, curvo o en S para esquivar al defensor.
 - El timing importa: no todos los jugadores deben salir y llegar a la vez.
 - No exageres: movimientos suaves, creíbles y legibles.
+
+PIZARRA LIBRE:
+- Cada trazo tiene un id, color, grosor, inicio, fin, caja, longitud y puntos muestreados.
+- Interpreta el trazo como lo haría un entrenador al leer una pizarra:
+  - línea con dirección = corte (cut)
+  - línea quebrada o con bote = dribble
+  - línea que cruza el campo hacia otro jugador = pass
+  - trazo que termina en una barra perpendicular = screen
+  - trazo corto cruzado = handoff
+  - trazo que termina en círculo/diana = shot
+  - trazo curvo hacia el aro = roll
+  - trazo curvo hacia fuera = pop
+  - desplazamiento defensivo = rotation
+  - anotación o garabato sin dirección = freehand o note
+- Si dudas entre dos, elige el elemento que tenga más sentido táctico en el contexto del bloque y del balón.
+- Usa el mismo id y frameIndex del trazo. Incluye una etiqueta corta cuando aporte ("bloqueo", "pase", "tiro", "corte").
 
 CAMPOS DE MOVIMIENTO:
 - "motions": una entrada por jugador y transición. Si un jugador no aparece, se usará un movimiento lineal por defecto.
@@ -285,6 +386,14 @@ ESQUEMA DE SALIDA:
       "spin": 1.1
     }
   ],
+  "strokeTypes": [
+    {
+      "frameIndex": 0,
+      "strokeId": "s-abc123",
+      "type": "cut",
+      "label": "corte"
+    }
+  ],
   "highlights": [
     { "frameIndex": 1, "playerId": "o4", "color": "#f97316" }
   ]
@@ -310,7 +419,7 @@ async function callNan(prompt) {
       { role: "user", content: prompt },
     ],
     temperature: 0.2,
-    max_tokens: 8192,
+    max_tokens: 12000,
     response_format: { type: "json_object" },
   };
   let response = await fetch(`${config.nanBaseUrl}/chat/completions`, {

@@ -13,6 +13,7 @@ Repositorio: [github.com/protongit/basket-playbook](https://github.com/protongit
 - **Pista FIBA realista** en SVG, dibujada a escala (28 × 15 m, 3 puntos de 6,75 m, zona de 4,90 × 5,80 m, aro y red) con parqué, líneas, tablero y balón con costuras.
 - **Editor de pizarra** en SVG con dos modos: jugadores 1–5, defensores X1–X5, balón y notación clásica, o **pizarra libre a mano alzada** con lápiz, rotulador, colores, grosor, borrador y trazos por bloque.
 - **Notación clásica**: corte, bote, pase, bloqueo, mano a mano, tiro, caída, apertura y rotación defensiva.
+- **Interpretación IA de la pizarra libre**: cada trazo se clasifica como corte, bote, pase, bloqueo, mano a mano, tiro, caída, apertura o rotación, y la animación lo dibuja con la notación del entrenador.
 - **Línea de tiempo por bloques**: cada bloque es una posición; la app interpola y dibuja la acción entre bloques.
 - **Notas y ficha táctica**: objetivo, personal clave, lecturas, contras, puntos de coaching y etiquetas.
 - **Animación local determinista** en canvas, con play/pausa, arrastre temporal, velocidad, bucle y **reproductor ampliado** con pantalla completa.
