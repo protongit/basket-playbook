@@ -20,7 +20,7 @@ Herramienta web para entrenadores de baloncesto que convierte una pizarra tácti
 5. Añadir bloques, mover jugadores y marcar acciones, o dibujar trazos a mano alzada.
 6. Completar la ficha táctica: objetivo, lecturas, contras, coaching y etiquetas.
 7. Reproducir la animación local.
-8. Generar la animación con IA y guardarla en la ficha.
+8. Reproducir la animación local de la jugada.
 9. Compartir un enlace o imprimir el playbook en PDF.
 
 ## Pantallas
@@ -75,12 +75,9 @@ La acción se asigna a un jugador; el destino de un pase se deriva del portador 
 ## Animación
 
 - Modo local determinista: siempre disponible.
-- Modo IA: el servidor envía la jugada a nan.builders y recibe un `AnimationSpec` validado.
-- La IA reinterpreta el movimiento: elige curvas, aceleración/frenada, retrasos, pausas de bloqueo y arcos de pase. La cámara es fija y la pista se muestra siempre completa.
-- En pizarra libre, la IA interpreta cada trazo y lo convierte en notación táctica: corte, bote, pase, bloqueo, mano a mano, tiro, caída, apertura o rotación.
+- Modo local determinista: reproduce los bloques y los trazos de pizarra tal como se dibujaron.
+- La cámara es fija y la pista se muestra siempre completa.
 - El motor de canvas renderiza pista FIBA realista, jugadores, estelas, balón con costuras, captions y controles.
-- La IA no puede cambiar posiciones de salida o llegada ni inventar jugadores.
-- La ficha permite comparar la animación IA con la animación local determinista.
 
 ## Criterios de hecho
 
@@ -88,8 +85,7 @@ La acción se asigna a un jugador; el destino de un pase se deriva del portador 
 - Aislamiento de datos entre usuarios.
 - Playbook y jugada recuperables tras reiniciar el servidor.
 - Editor con al menos 5 atacantes, 5 defensores y múltiples frames.
-- Animación local y animación IA almacenada.
-- Fallback si la IA falla.
+- Animación local reproducible desde la ficha y desde el visor ampliado.
 - Enlace público de solo lectura.
 - Impresión/PDF.
 - Docker build y despliegue en NaN con volumen en `/data`.

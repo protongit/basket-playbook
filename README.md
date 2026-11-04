@@ -1,6 +1,6 @@
 # Basket Playbook
 
-Pizarra táctica de baloncesto con playbooks, línea de tiempo por bloques y animaciones generadas con la IA de [nan.builders](https://nan.builders).
+Pizarra táctica de baloncesto con playbooks, línea de tiempo por bloques y animación local en canvas.
 
 Diseña sistemas de ataque, defensa, BLOB, SLOB, transición o drills; guarda cada jugada en un playbook; reproduce la secuencia; comparte un enlace de solo lectura con tus jugadores.
 
@@ -13,12 +13,9 @@ Repositorio: [github.com/protongit/basket-playbook](https://github.com/protongit
 - **Pista FIBA realista** en SVG, dibujada a escala (28 × 15 m, 3 puntos de 6,75 m, zona de 4,90 × 5,80 m, aro y red) con parqué, líneas, tablero y balón con costuras.
 - **Editor de pizarra** en SVG con dos modos: jugadores 1–5, defensores X1–X5, balón y notación clásica, o **pizarra libre a mano alzada** con lápiz, rotulador, colores, grosor, borrador y trazos por bloque.
 - **Notación clásica**: corte, bote, pase, bloqueo, mano a mano, tiro, caída, apertura y rotación defensiva.
-- **Interpretación IA de la pizarra libre**: cada trazo se clasifica como corte, bote, pase, bloqueo, mano a mano, tiro, caída, apertura o rotación, y la animación lo dibuja con la notación del entrenador.
 - **Línea de tiempo por bloques**: cada bloque es una posición; la app interpola y dibuja la acción entre bloques.
 - **Notas y ficha táctica**: objetivo, personal clave, lecturas, contras, puntos de coaching y etiquetas.
 - **Animación local determinista** en canvas, con play/pausa, arrastre temporal, velocidad, bucle y **reproductor ampliado** con pantalla completa.
-- **Animación con IA**: el servidor llama a `nan.builders` y la IA reinterpreta el movimiento (curvas, aceleración/frenada, pausas de bloqueo y arcos de pase), con cámara fija y pista completa siempre visible. El `AnimationSpec` se guarda en la ficha. Si la IA falla, se conserva una animación local.
-- **Comparador IA / local** en la ficha para ver la diferencia entre la interpolación directa y la reinterpretación de la IA.
 - **Enlace público de solo lectura** para compartir con jugadores.
 - **Impresión / PDF** con una jugada por sección, frames, notas y leyenda.
 - **Persistencia en servidor** con SQLite y Docker todo-en-uno, listo para NaN Apps.
@@ -27,13 +24,12 @@ Repositorio: [github.com/protongit/basket-playbook](https://github.com/protongit
 
 - Node.js **24** o superior (usa `node:sqlite`).
 - Docker, opcional pero recomendado.
-- Una API key de nan.builders para generar animaciones con IA.
 
 ## Arranque local
 
 ```bash
 cp .env.example .env
-# edita SESSION_SECRET y, si quieres IA, NAN_API_KEY
+# edita SESSION_SECRET
 npm start
 ```
 
@@ -85,8 +81,6 @@ NaN Apps construye la imagen desde un repositorio de GitHub. El requisito es que
 | Variable | Valor |
 |---|---|
 | `SESSION_SECRET` | Cadena aleatoria larga; no la pierdas |
-| `NAN_API_KEY` | Tu clave de nan.builders |
-| `NAN_MODEL` | `deepseek-v4-flash` (por defecto) |
 | `DB_PATH` | `/data/basket-playbook.db` |
 | `COOKIE_SECURE` | `1` |
 | `REGISTRATION_MODE` | `open` |
@@ -111,9 +105,6 @@ Más detalle en [`docs/DEPLOY-NAN.md`](docs/DEPLOY-NAN.md).
 | `COOKIE_SECURE` | `1` en producción | `1` con HTTPS; `0` para localhost |
 | `REGISTRATION_MODE` | `open` | `open` o `invite` |
 | `INVITE_CODE` | vacío | Código si `REGISTRATION_MODE=invite` |
-| `NAN_API_KEY` | vacío | Clave de nan.builders |
-| `NAN_BASE_URL` | `https://api.nan.builders/v1` | Endpoint compatible OpenAI |
-| `NAN_MODEL` | `deepseek-v4-flash` | Modelo para el `AnimationSpec` |
 
 ## Seguridad
 
@@ -121,8 +112,6 @@ Más detalle en [`docs/DEPLOY-NAN.md`](docs/DEPLOY-NAN.md).
 - Token de sesión opaco; en la base solo se guarda su HMAC-SHA256.
 - Cookie `HttpOnly`, `SameSite=Lax` y `Secure` en producción.
 - Todas las consultas de playbooks y jugadas se filtran por propietario.
-- La `NAN_API_KEY` nunca llega al navegador.
-- La IA no mueve posiciones: recibe la geometría exacta y devuelve un guion de tiempos, curvas y énfasis. El servidor valida el spec y usa un fallback local si falla. La cámara no se mueve: la pista completa queda siempre encuadrada.
 - Rate limit en login y registro.
 - Cabeceras CSP, `X-Frame-Options` y `X-Content-Type-Options`.
 
@@ -144,8 +133,6 @@ POST   /api/playbooks/:id/plays
 GET    /api/plays/:id
 PATCH  /api/plays/:id
 DELETE /api/plays/:id
-POST   /api/plays/:id/animation
-GET    /api/plays/:id/animation
 POST   /api/plays/:id/share
 
 GET    /api/public/plays/:token
@@ -183,11 +170,11 @@ basket-playbook/
 │   └── js/
 │       ├── main.js · api.js · ui.js
 │       ├── notation.js · court.js
-│       ├── animation/player.js
+│       ├── animation/player.js · animation/viewer.js
 │       └── views/
 ├── server/
 │   ├── index.mjs · config.mjs · db.mjs · auth.mjs · http.mjs
-│   ├── static.mjs · ai.mjs · seed.mjs · play-defaults.mjs
+│   ├── static.mjs · seed.mjs · common-plays.mjs · play-defaults.mjs
 │   └── migrations/
 ├── scripts/
 ├── docs/

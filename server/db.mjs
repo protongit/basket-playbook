@@ -58,9 +58,6 @@ CREATE TABLE IF NOT EXISTS plays (
   court_json TEXT NOT NULL DEFAULT '{"type":"half","league":"fiba"}',
   meta_json TEXT NOT NULL DEFAULT '{}',
   frames_json TEXT NOT NULL DEFAULT '[]',
-  animation_json TEXT,
-  animation_status TEXT NOT NULL DEFAULT 'draft',
-  animation_hash TEXT,
   version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -116,8 +113,6 @@ function serializePlay(row) {
     court: parseJson(row.court_json, { type: "half", league: "fiba" }),
     meta: parseJson(row.meta_json, {}),
     frames: parseJson(row.frames_json, []),
-    animation: parseJson(row.animation_json, null),
-    animationStatus: row.animation_status,
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -350,8 +345,8 @@ export function createPlay(playbookId, userId, data) {
     .prepare(
       `INSERT INTO plays
        (id, playbook_id, chapter_id, title, call_code, category, subcategory,
-        court_json, meta_json, frames_json, animation_json, animation_status, version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'draft', 1, ?, ?)`,
+        court_json, meta_json, frames_json, version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
     )
     .run(
       playId,
@@ -391,18 +386,12 @@ export function updatePlay(playId, userId, patch, baseVersion) {
     court: patch.court !== undefined ? JSON.stringify(patch.court) : current.court_json,
     meta: patch.meta !== undefined ? JSON.stringify(patch.meta) : current.meta_json,
     frames: patch.frames !== undefined ? JSON.stringify(patch.frames) : current.frames_json,
-    animation:
-      patch.animation !== undefined ? JSON.stringify(patch.animation) : current.animation_json,
-    animationStatus:
-      patch.animationStatus !== undefined ? String(patch.animationStatus) : current.animation_status,
-    animationHash: patch.animationHash !== undefined ? patch.animationHash : current.animation_hash,
     version: current.version + 1,
   };
   getDb()
     .prepare(
       `UPDATE plays SET title = ?, call_code = ?, category = ?, subcategory = ?, chapter_id = ?,
-       court_json = ?, meta_json = ?, frames_json = ?, animation_json = ?, animation_status = ?,
-       animation_hash = ?, version = ?, updated_at = ? WHERE id = ?`,
+       court_json = ?, meta_json = ?, frames_json = ?, version = ?, updated_at = ? WHERE id = ?`,
     )
     .run(
       next.title,
@@ -413,24 +402,10 @@ export function updatePlay(playId, userId, patch, baseVersion) {
       next.court,
       next.meta,
       next.frames,
-      next.animation,
-      next.animationStatus,
-      next.animationHash,
       next.version,
       now(),
       playId,
     );
-  return getPlay(playId, userId);
-}
-
-export function setPlayAnimation(playId, userId, { animation, status, hash }) {
-  const result = getDb()
-    .prepare(
-      `UPDATE plays SET animation_json = ?, animation_status = ?, animation_hash = ?
-       WHERE id = ? AND playbook_id IN (SELECT id FROM playbooks WHERE user_id = ?)`,
-    )
-    .run(JSON.stringify(animation), status, hash || null, playId, userId);
-  if (!result.changes) throw new HttpError(404, "Jugada no encontrada");
   return getPlay(playId, userId);
 }
 

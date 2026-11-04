@@ -16,9 +16,6 @@ import { HttpError, json, readJson, securityHeaders, text, verifyOrigin } from "
 import { serveStatic } from "./static.mjs";
 import { buildDemoPlaybook } from "./seed.mjs";
 import { defaultCourt, defaultFrame } from "./play-defaults.mjs";
-import { generateAnimationSpec, playHash } from "./ai.mjs";
-
-const activeAnimations = new Set();
 
 function clientIp(req) {
   return (
@@ -219,65 +216,6 @@ async function handlePlays(req, res, pathname, searchParams) {
     }
   }
 
-  const animationMatch = pathname.match(/^\/api\/plays\/([^/]+)\/animation$/);
-  if (animationMatch) {
-    const playId = animationMatch[1];
-    const play = db.getPlay(playId, user.id);
-    if (!play) throw new HttpError(404, "Jugada no encontrada");
-    if (req.method === "GET") {
-      return json(res, 200, {
-        animation: play.animation,
-        status: play.animationStatus,
-        stale: Boolean(
-          play.animation &&
-            play.animation.hash &&
-            play.animation.hash !== playHash(play),
-        ),
-      });
-    }
-    if (req.method === "POST") {
-      verifyOrigin(req);
-      const body = await readJson(req);
-      const force = Boolean(body.force);
-      const hash = playHash(play);
-      if (
-        !force &&
-        play.animation &&
-        play.animation.spec &&
-        play.animation.hash === hash
-      ) {
-        return json(res, 200, {
-          animation: play.animation,
-          cached: true,
-          status: play.animationStatus,
-        });
-      }
-      if (activeAnimations.has(playId)) {
-        throw new HttpError(409, "Ya se está generando una animación para esta jugada");
-      }
-      activeAnimations.add(playId);
-      try {
-        const result = await generateAnimationSpec(play);
-        const animation = {
-          spec: result.spec,
-          model: result.model,
-          source: result.source,
-          error: result.error,
-          hash: result.hash,
-          generatedAt: new Date().toISOString(),
-        };
-        const updated = db.setPlayAnimation(playId, user.id, {
-          animation,
-          status: result.source === "ai" ? "ready" : "fallback",
-          hash: result.hash,
-        });
-        return json(res, 200, { animation: updated.animation, status: updated.animationStatus });
-      } finally {
-        activeAnimations.delete(playId);
-      }
-    }
-  }
-
   const shareMatch = pathname.match(/^\/api\/plays\/([^/]+)\/share$/);
   if (shareMatch && req.method === "POST") {
     verifyOrigin(req);
@@ -337,7 +275,6 @@ async function handleApi(req, res, url) {
       ok: true,
       service: "basket-playbook",
       version: config.version,
-      ai: Boolean(config.nanApiKey),
       time: new Date().toISOString(),
     });
   }
@@ -385,7 +322,6 @@ setInterval(() => {
 server.listen(config.port, config.host, () => {
   console.log(`basket-playbook en http://${config.host}:${config.port}`);
   console.log(`Base de datos: ${config.dbPath}`);
-  console.log(`IA: ${config.nanApiKey ? config.nanModel : "fallback local (sin NAN_API_KEY)"}`);
 });
 
 for (const signal of ["SIGTERM", "SIGINT"]) {

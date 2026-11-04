@@ -2,7 +2,7 @@ import { api } from "../api.js";
 import { renderCourtSvg } from "../court.js";
 import { createPlayback, buildLocalSpec } from "../animation/player.js";
 import { openAnimationViewer } from "../animation/viewer.js";
-import { ACTION_TYPES, formatDuration, metaList } from "../notation.js";
+import { formatDuration, metaList } from "../notation.js";
 import {
   confirmDialog,
   copyText,
@@ -26,7 +26,6 @@ export async function renderPlay(container, params, ctx) {
 
   let selectedFrame = 0;
   let playback = null;
-  let animationMode = play.animation?.source === "ai" ? "ai" : "local";
 
   container.innerHTML = `
     <section class="page-head play-head">
@@ -66,10 +65,7 @@ export async function renderPlay(container, params, ctx) {
         <article class="panel animation-panel">
           <div class="panel-head">
             <div><span class="eyebrow">Animación</span><h2>Movimiento de la jugada</h2></div>
-            <div class="animation-head-tools">
-              ${play.animation?.source === "ai" ? `<div class="animation-mode" id="anim-mode"><button data-anim-mode="ai" class="${animationMode === "ai" ? "is-active" : ""}">IA</button><button data-anim-mode="local" class="${animationMode === "local" ? "is-active" : ""}">Local</button></div>` : ""}
-              <span class="status-pill ${play.animationStatus === "ready" ? "ready" : play.animationStatus === "fallback" ? "fallback" : "draft"}">${play.animationStatus === "ready" ? "IA lista" : play.animationStatus === "fallback" ? "Fallback local" : "Sin generar"}</span>
-            </div>
+            <span class="status-pill">Local</span>
           </div>
           <div class="animation-stage">
             <canvas id="animation-canvas" width="1000" height="780"></canvas>
@@ -81,15 +77,12 @@ export async function renderPlay(container, params, ctx) {
           </div>
           <div class="animation-foot">
             <div class="animation-note" id="animation-note">
-              ${play.animation?.source === "ai" ? `Generada con <strong>${escapeHtml(play.animation.model || "IA")}</strong>.` : "Animación local determinista. Genera con IA para añadir curvas, pausas y tiempos más reales."}
-              ${play.animation?.error ? `<span class="warn-text">${escapeHtml(play.animation.error)}</span>` : ""}
+              Animación local determinista entre bloques.
             </div>
             <div class="animation-foot-actions">
               <button class="btn btn-ghost" id="expand-animation">Ampliar</button>
-              <button class="btn btn-accent" id="generate-animation">Generar con IA</button>
             </div>
           </div>
-          ${play.updatedAt > (play.animation?.generatedAt || "") && play.animation ? '<div class="stale-badge">La jugada cambió después de generar la animación.</div>' : ""}
         </article>
 
         <article class="panel">
@@ -150,11 +143,7 @@ export async function renderPlay(container, params, ctx) {
     const scrub = container.querySelector("#anim-scrub");
     const playButton = container.querySelector("#anim-play");
     const speed = container.querySelector("#anim-speed");
-    const currentSpec =
-      animationMode === "ai" && play.animation?.spec
-        ? play.animation.spec
-        : buildLocalSpec(play);
-    playback = createPlayback(canvas, play, currentSpec, {
+    playback = createPlayback(canvas, play, buildLocalSpec(play), {
       loop: true,
       onStateChange(playing, time, total) {
         playButton.textContent = playing ? "Pausar" : "Reproducir";
@@ -170,27 +159,11 @@ export async function renderPlay(container, params, ctx) {
   function updateAnimationNote() {
     const note = container.querySelector("#animation-note");
     if (!note) return;
-    const hasStrokes = play.frames.some((frame) => (frame.strokes || []).length);
-    if (animationMode === "ai" && play.animation?.spec && play.animation.source === "ai") {
-      note.innerHTML = `Movimiento reinterpretado por <strong>${escapeHtml(play.animation.model || "la IA")}</strong>: curvas, tiempos y pausas de movimiento real.${hasStrokes ? " Los trazos de pizarra se convierten en corte, pase, bloqueo, tiro o rotación." : ""}`;
-    } else if (play.animation?.source === "fallback") {
-      note.innerHTML = `La IA no pudo reinterpretar la jugada; se muestra la animación local.${play.animation.error ? `<span class="warn-text">${escapeHtml(play.animation.error)}</span>` : ""}`;
-    } else {
-      note.innerHTML = "Animación local determinista: interpolación directa entre bloques. Genera con IA para ver la reinterpretación con curvas y pausas.";
-    }
+    note.textContent = "Animación local determinista: interpolación directa entre bloques.";
   }
 
   renderDiagram();
   initPlayback();
-  for (const button of container.querySelectorAll("[data-anim-mode]")) {
-    button.addEventListener("click", () => {
-      animationMode = button.dataset.animMode;
-      for (const item of container.querySelectorAll("[data-anim-mode]")) {
-        item.classList.toggle("is-active", item === button);
-      }
-      initPlayback();
-    });
-  }
 
   container.querySelector("[data-prev-frame]").addEventListener("click", () => {
     selectedFrame = Math.max(0, selectedFrame - 1);
@@ -233,26 +206,7 @@ export async function renderPlay(container, params, ctx) {
     }
   });
   container.querySelector("#expand-animation").addEventListener("click", () => {
-    openAnimationViewer(play, {
-      mode: animationMode,
-      allowModes: play.animation?.source === "ai",
-    });
-  });
-  container.querySelector("#generate-animation").addEventListener("click", async (event) => {
-    const button = event.currentTarget;
-    button.disabled = true;
-    button.textContent = "Generando…";
-    try {
-      const result = await api(`/plays/${play.id}/animation`, { method: "POST", body: { force: true } });
-      play.animation = result.animation;
-      play.animationStatus = result.status;
-      showToast(result.animation?.source === "ai" ? "Animación generada con IA" : "Animación local generada", result.animation?.source === "ai" ? "success" : "info");
-      ctx.render();
-    } catch (error) {
-      showToast(error.message, "error");
-      button.disabled = false;
-      button.textContent = "Generar con IA";
-    }
+    openAnimationViewer(play);
   });
   void playback;
 }

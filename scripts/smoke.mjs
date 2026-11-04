@@ -30,7 +30,6 @@ async function startServer() {
       SESSION_SECRET: "smoke-test-secret",
       REGISTRATION_MODE: "open",
       COOKIE_SECURE: "0",
-      NAN_API_KEY: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -86,7 +85,6 @@ try {
   await startServer();
   const health = await request("/api/health");
   ok(health.status === 200 && health.json.ok, "health responde");
-  ok(health.json.ai === false, "sin NAN_API_KEY la IA queda desactivada");
 
   const register = await request("/api/auth/register", {
     method: "POST",
@@ -143,15 +141,6 @@ try {
     body: { frames, baseVersion },
   });
   ok(conflict.status === 409, "conflicto de versión detectado");
-
-  const animation = await request(`/api/plays/${playId}/animation`, {
-    method: "POST",
-    cookie: cookieA,
-    body: { force: true },
-  });
-  ok(animation.status === 200, "generar animación fallback");
-  ok(animation.json.status === "fallback", "estado fallback");
-  ok(animation.json.animation.spec.beats.length === 2, "spec con dos beats");
 
   const share = await request(`/api/plays/${playId}/share`, {
     method: "POST",

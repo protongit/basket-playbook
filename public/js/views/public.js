@@ -86,7 +86,7 @@ export async function renderPublic(container, params) {
   }
 
   renderDiagram();
-  const playback = createPlayback(container.querySelector("#animation-canvas"), play, play.animation?.spec || buildLocalSpec(play), {
+  const playback = createPlayback(container.querySelector("#animation-canvas"), play, buildLocalSpec(play), {
     loop: true,
     onStateChange(playing, time, total) {
       const button = container.querySelector("#anim-play");
@@ -100,10 +100,7 @@ export async function renderPublic(container, params) {
     playback.seek((Number(event.target.value) / 1000) * playback.timeline.total);
   container.querySelector("#anim-speed").onchange = (event) => playback.setSpeed(Number(event.target.value));
   container.querySelector("#public-expand").addEventListener("click", () => {
-    openAnimationViewer(play, {
-      mode: play.animation?.source === "ai" ? "ai" : "local",
-      allowModes: play.animation?.source === "ai",
-    });
+    openAnimationViewer(play);
   });
 }
 

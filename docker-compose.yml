@@ -13,8 +13,6 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
       REGISTRATION_MODE: ${REGISTRATION_MODE:-open}
       INVITE_CODE: ${INVITE_CODE:-}
-      NAN_API_KEY: ${NAN_API_KEY:-}
-      NAN_MODEL: ${NAN_MODEL:-deepseek-v4-flash}
     volumes:
       - basket_data:/data
     restart: unless-stopped

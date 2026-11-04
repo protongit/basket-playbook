@@ -12,8 +12,7 @@ sessions(id, user_id, token_hash UNIQUE, expires_at, created_at, user_agent, ip)
 playbooks(id, user_id, title, team, season, description, cover_color,
           chapters_json, version, created_at, updated_at)
 plays(id, playbook_id, chapter_id, title, call_code, category, subcategory,
-      court_json, meta_json, frames_json, animation_json, animation_status,
-      animation_hash, version, created_at, updated_at)
+      court_json, meta_json, frames_json, version, created_at, updated_at)
 share_links(id, user_id, play_id, token_hash UNIQUE, expires_at, created_at)
 ```
 
@@ -64,46 +63,6 @@ Stroke = {
   points: [{ x, y }]        // coordenadas normalizadas
 }
 
-Animation = {
-  spec: AnimationSpec,
-  model: string,
-  source: "ai"|"fallback",
-  error: string|null,
-  hash: string,
-  generatedAt: string
-}
-
-AnimationSpec = {
-  title: string,
-  style: "whiteboard",
-  generatedBy: "ai"|"fallback",
-  durationMs: number,
-  fps: 24..60,
-  beats: [{ frameIndex, holdMs, caption, focusPlayerIds }],
-  motions: [{
-    playerId,
-    toFrame,
-    path: "straight"|"curveLeft"|"curveRight"|"sCurve"|"roll"|"pop"|"screen",
-    easing: "linear"|"easeIn"|"easeOut"|"easeInOut"|"easeInOutQuint"|"easeOutBack",
-    delay: 0..0.45,
-    durationScale: 0.45..1.15,
-    lateral: -0.18..0.18,
-    hold: 0..0.35,
-    lean: 0..0.12,
-    overshoot: 0..0.12
-  }],
-  passes: [{
-    toFrame, fromPlayerId, toPlayerId,
-    arc: 0..0.5, speed: 0.5..2, spin: 0..3
-  }],
-  strokeTypes: [{
-    frameIndex,
-    strokeId,
-    type: "cut"|"dribble"|"pass"|"screen"|"handoff"|"shot"|"roll"|"pop"|"rotation"|"freehand"|"note",
-    label: string
-  }],
-  highlights: [{ frameIndex, playerId, color }]
-}
 ```
 
 ## API
@@ -125,8 +84,6 @@ Todas las rutas privadas requieren cookie `bp_session`. Las respuestas de error 
 | GET | `/api/plays/:id` | → `{play}` |
 | PATCH | `/api/plays/:id` | campos + `baseVersion` |
 | DELETE | `/api/plays/:id` | → `{ok}` |
-| POST | `/api/plays/:id/animation` | `{force?}` → `{animation,status}` |
-| GET | `/api/plays/:id/animation` | → `{animation,status,stale}` |
 | POST | `/api/plays/:id/share` | `{expiresDays?}` → `{token,path,expiresAt}` |
 | GET | `/api/public/plays/:token` | → `{play}` |
 | GET | `/api/export` | → JSON de toda la biblioteca |
@@ -147,4 +104,3 @@ Todas las rutas privadas requieren cookie `bp_session`. Las respuestas de error 
 - Rate limit: login 12/15 min por IP+email; registro 100/h por IP.
 - Validación de `Origin` en POST/PATCH/DELETE.
 - Ownership check en todas las consultas de playbooks/jugadas.
-- La clave de IA solo existe en el servidor.

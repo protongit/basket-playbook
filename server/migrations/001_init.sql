@@ -48,9 +48,6 @@ CREATE TABLE IF NOT EXISTS plays (
   court_json TEXT NOT NULL DEFAULT '{"type":"half","league":"fiba"}',
   meta_json TEXT NOT NULL DEFAULT '{}',
   frames_json TEXT NOT NULL DEFAULT '[]',
-  animation_json TEXT,
-  animation_status TEXT NOT NULL DEFAULT 'draft',
-  animation_hash TEXT,
   version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

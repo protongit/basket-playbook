@@ -442,14 +442,9 @@ function drawBall(ctx, x, y, scale, rotation = 0) {
 }
 
 
-function drawStrokeSet(ctx, strokes = [], spec, frameIndex, scale, ox, oy, courtType, alpha = 1, partial = 1) {
+function drawStrokeSet(ctx, strokes = [], scale, ox, oy, courtType, alpha = 1, partial = 1) {
   if (!Array.isArray(strokes) || !strokes.length || alpha <= 0) return;
   const dims = courtDimensions({ type: courtType });
-  const types = new Map(
-    (spec?.strokeTypes || [])
-      .filter((entry) => Number(entry.frameIndex) === Number(frameIndex))
-      .map((entry) => [entry.strokeId, entry]),
-  );
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -460,15 +455,10 @@ function drawStrokeSet(ctx, strokes = [], spec, frameIndex, scale, ox, oy, court
     if (count < 2) continue;
     const visible = points.slice(0, count);
     const color = /^#[0-9a-f]{6}$/i.test(stroke.color) ? stroke.color : "#f97316";
-    const type = types.get(stroke.id)?.type || "freehand";
-    const label = types.get(stroke.id)?.label || "";
     const highlighter = stroke.tool === "highlighter";
     ctx.globalAlpha = alpha * (highlighter ? 0.36 : 0.95);
     ctx.strokeStyle = color;
-    ctx.fillStyle = color;
     ctx.lineWidth = Math.max(1, Math.min(30, Number(stroke.width) || 6) * scale);
-    ctx.setLineDash(type === "pass" ? [8 * scale, 6 * scale] : type === "rotation" ? [5 * scale, 5 * scale] : []);
-
     ctx.beginPath();
     ctx.moveTo(ox + visible[0].x * dims.w * scale, oy + visible[0].y * dims.h * scale);
     for (let index = 1; index < visible.length - 1; index += 1) {
@@ -484,72 +474,8 @@ function drawStrokeSet(ctx, strokes = [], spec, frameIndex, scale, ox, oy, court
       );
     }
     const last = visible[visible.length - 1];
-    const previous = visible[visible.length - 2];
-    const lastX = ox + last.x * dims.w * scale;
-    const lastY = oy + last.y * dims.h * scale;
-    const prevX = ox + previous.x * dims.w * scale;
-    const prevY = oy + previous.y * dims.h * scale;
-    ctx.lineTo(lastX, lastY);
+    ctx.lineTo(ox + last.x * dims.w * scale, oy + last.y * dims.h * scale);
     ctx.stroke();
-    ctx.setLineDash([]);
-
-    if (["cut", "dribble", "pass", "roll", "pop", "rotation"].includes(type)) {
-      const angle = Math.atan2(lastY - prevY, lastX - prevX);
-      const size = Math.max(7, 15 * scale);
-      ctx.beginPath();
-      ctx.moveTo(lastX, lastY);
-      ctx.lineTo(lastX - Math.cos(angle - 0.45) * size, lastY - Math.sin(angle - 0.45) * size);
-      ctx.lineTo(lastX - Math.cos(angle + 0.45) * size, lastY - Math.sin(angle + 0.45) * size);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    if (type === "screen") {
-      const angle = Math.atan2(lastY - prevY, lastX - prevX) + Math.PI / 2;
-      const half = Math.max(10, 20 * scale);
-      ctx.beginPath();
-      ctx.lineWidth = Math.max(2, 5 * scale);
-      ctx.moveTo(lastX - Math.cos(angle) * half, lastY - Math.sin(angle) * half);
-      ctx.lineTo(lastX + Math.cos(angle) * half, lastY + Math.sin(angle) * half);
-      ctx.stroke();
-    }
-
-    if (type === "handoff") {
-      const half = Math.max(7, 12 * scale);
-      ctx.lineWidth = Math.max(1.5, 3 * scale);
-      ctx.beginPath();
-      ctx.moveTo(lastX - half, lastY - half);
-      ctx.lineTo(lastX + half, lastY + half);
-      ctx.moveTo(lastX - half, lastY + half);
-      ctx.lineTo(lastX + half, lastY - half);
-      ctx.stroke();
-    }
-
-    if (type === "shot") {
-      ctx.lineWidth = Math.max(1.5, 3 * scale);
-      ctx.beginPath();
-      ctx.arc(lastX, lastY, Math.max(10, 20 * scale), 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(lastX, lastY, Math.max(2, 4 * scale), 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    if (type === "dribble") {
-      drawBall(ctx, lastX, lastY, scale * 0.72, 0);
-    }
-
-    if (label && count === points.length) {
-      ctx.globalAlpha = alpha;
-      ctx.font = `700 ${Math.max(11, 14 * scale)}px ui-sans-serif, system-ui`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "rgba(7, 13, 26, .72)";
-      const textWidth = ctx.measureText(label).width;
-      ctx.fillRect(lastX + 10 * scale, lastY - 22 * scale, textWidth + 8 * scale, 16 * scale);
-      ctx.fillStyle = color;
-      ctx.fillText(label, lastX + 14 * scale, lastY - 14 * scale);
-    }
   }
   ctx.restore();
 }
@@ -617,10 +543,10 @@ export function drawFrame(ctx, play, spec, time = 0) {
   drawCourt(ctx, play, area);
   if (state.rawProgress > 0) {
     drawTrails(ctx, fromFrame, toFrame, scale, ox, oy, play.court.type);
-    drawStrokeSet(ctx, fromFrame.strokes || [], timeline.spec, state.from, scale, ox, oy, play.court.type, 1 - state.rawProgress, 1);
-    drawStrokeSet(ctx, toFrame.strokes || [], timeline.spec, state.to, scale, ox, oy, play.court.type, state.rawProgress, state.rawProgress);
+    drawStrokeSet(ctx, fromFrame.strokes || [], scale, ox, oy, play.court.type, 1 - state.rawProgress, 1);
+    drawStrokeSet(ctx, toFrame.strokes || [], scale, ox, oy, play.court.type, state.rawProgress, state.rawProgress);
   } else {
-    drawStrokeSet(ctx, toFrame.strokes || [], timeline.spec, state.to, scale, ox, oy, play.court.type, 1, 1);
+    drawStrokeSet(ctx, toFrame.strokes || [], scale, ox, oy, play.court.type, 1, 1);
   }
   const players = interpolatePlayers(play, timeline.spec, state.from, state.to, state.rawProgress);
   const dims = courtDimensions(play.court);

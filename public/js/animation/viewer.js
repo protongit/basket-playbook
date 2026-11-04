@@ -1,14 +1,8 @@
 import { buildLocalSpec, createPlayback } from "./player.js";
 import { escapeHtml, openModal } from "../ui.js";
 
-export function openAnimationViewer(play, options = {}) {
-  const hasAI = play.animation?.source === "ai" && play.animation?.spec;
-  let mode = options.mode === "ai" && hasAI ? "ai" : "local";
+export function openAnimationViewer(play) {
   let playback = null;
-
-  function specFor(target) {
-    return target === "ai" && hasAI ? play.animation.spec : buildLocalSpec(play);
-  }
 
   const modal = openModal(
     `<div class="animation-viewer">
@@ -18,11 +12,6 @@ export function openAnimationViewer(play, options = {}) {
           <h2>${escapeHtml(play.title || "Jugada")}</h2>
         </div>
         <div class="viewer-head-actions">
-          ${
-            hasAI && options.allowModes !== false
-              ? `<div class="animation-mode" id="viewer-mode"><button data-viewer-mode="ai" class="${mode === "ai" ? "is-active" : ""}">IA</button><button data-viewer-mode="local" class="${mode === "local" ? "is-active" : ""}">Local</button></div>`
-              : ""
-          }
           <button class="btn btn-ghost" id="viewer-fullscreen">Pantalla completa</button>
           <button class="icon-btn" data-close aria-label="Cerrar">×</button>
         </div>
@@ -57,7 +46,7 @@ export function openAnimationViewer(play, options = {}) {
 
         function init() {
           playback?.destroy();
-          playback = createPlayback(canvas, play, specFor(mode), {
+          playback = createPlayback(canvas, play, buildLocalSpec(play), {
             loop: loop.checked,
             onStateChange(playing, time, total) {
               playButton.textContent = playing ? "Pausar" : "Reproducir";
@@ -76,15 +65,6 @@ export function openAnimationViewer(play, options = {}) {
         });
         speed.addEventListener("change", () => playback?.setSpeed(Number(speed.value)));
         loop.addEventListener("change", () => playback?.setLoop(loop.checked));
-        element.querySelectorAll("[data-viewer-mode]").forEach((button) => {
-          button.addEventListener("click", () => {
-            mode = button.dataset.viewerMode;
-            element.querySelectorAll("[data-viewer-mode]").forEach((item) => {
-              item.classList.toggle("is-active", item === button);
-            });
-            init();
-          });
-        });
         element.querySelector("#viewer-fullscreen").addEventListener("click", async () => {
           try {
             if (document.fullscreenElement) await document.exitFullscreen();

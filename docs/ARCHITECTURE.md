@@ -14,7 +14,6 @@ Servidor Node 24 (sin dependencias externas)
   ├─ server/index.mjs         HTTP + rutas
   ├─ server/auth.mjs          scrypt, sesiones, rate limit
   ├─ server/db.mjs            node:sqlite + migraciones
-  ├─ server/ai.mjs            prompt, nan.builders, validación, fallback
   ├─ server/static.mjs        assets
   └─ server/seed.mjs          playbook de ejemplo
 ```
@@ -26,8 +25,6 @@ Servidor Node 24 (sin dependencias externas)
 - **Canvas para la animación**: interpolación fluida y control de reproducción.
 - **SQLite embebido**: un único contenedor y un único volumen; ideal para NaN Apps con 1 réplica.
 - **Sesiones en base**: sobreviven a reinicios y logout real.
-- **IA como guion, no como geometría**: la IA recibe posiciones exactas y devuelve un `AnimationSpec`; el renderer local mantiene la fidelidad táctica.
-- **Fallback local**: la app nunca queda sin animación.
 - **Enlaces públicos con token**: no requieren cuenta para ver; no permiten editar.
 
 ## Persistencia

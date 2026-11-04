@@ -38,8 +38,6 @@ Entra en `https://cloud.nan.builders/spaces` y crea un Space o usa uno existente
 
 ```
 SESSION_SECRET=<aleatorio de 32 bytes>
-NAN_API_KEY=<clave de nan.builders>
-NAN_MODEL=deepseek-v4-flash
 DB_PATH=/data/basket-playbook.db
 COOKIE_SECURE=1
 REGISTRATION_MODE=open
@@ -69,7 +67,7 @@ https://<tu-dominio>/api/health
 Respuesta esperada:
 
 ```json
-{"ok":true,"service":"basket-playbook","version":"1.0.0","ai":true}
+{"ok":true,"service":"basket-playbook","version":"1.0.0"}
 ```
 
 7. **Auto-deploy**
@@ -81,7 +79,6 @@ Activa auto-deploy en la rama `main`. Cada push reconstruye la imagen. El volume
 - Registro y login funcionan.
 - Crear playbook y jugada.
 - Recargar la página y comprobar que los datos siguen ahí.
-- Generar animación con IA.
 - Abrir enlace público en una ventana privada.
 - Reiniciar la app desde NaN y verificar que la sesión y los datos siguen.
 - `GET /api/health` responde `200`.
