@@ -50,7 +50,11 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-La app escucha en `http://localhost:8080` y guarda la base en el volumen `basket_data` montado en `/data`.
+La app escucha en `http://localhost:8080` y guarda la base en el volumen `basket_data` montado en `/data`. Si el 8080 está ocupado, define `APP_PORT` en `.env` o al arrancar:
+
+```bash
+APP_PORT=8085 docker compose up -d --build
+```
 
 También puedes construir y ejecutar el contenedor directamente:
 
