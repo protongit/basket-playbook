@@ -7,7 +7,6 @@ import {
   deleteSession,
   getSessionUser,
   getUserCredentialsByEmail,
-  sha256,
 } from "./db.mjs";
 
 const scrypt = promisify(crypto.scrypt);
@@ -37,7 +36,10 @@ export function createSessionToken() {
 }
 
 export function sessionTokenHash(token) {
-  return sha256(token);
+  return crypto
+    .createHmac("sha256", config.sessionSecret)
+    .update(token)
+    .digest("hex");
 }
 
 export function getCurrentUser(req) {
