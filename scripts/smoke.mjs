@@ -191,6 +191,24 @@ try {
     "la jugada aparece en la exportación",
   );
 
+  const registerC = await request("/api/auth/register", {
+    method: "POST",
+    body: { email: "import@example.com", name: "Import", password: "password123" },
+  });
+  const imported = await request("/api/import", {
+    method: "POST",
+    cookie: registerC.cookie,
+    body: exported.json,
+  });
+  ok(imported.status === 200 && imported.json.imported >= 1, "importar playbooks");
+  const importedBooks = await request("/api/playbooks", { cookie: registerC.cookie });
+  ok(
+    importedBooks.json.playbooks.some((item) =>
+      item.title === "Playbook de ejemplo" && item.playCount >= 1,
+    ),
+    "el playbook importado queda disponible",
+  );
+
   await stopServer();
   await startServer();
   const sessionAfterRestart = await request("/api/auth/me", { cookie: cookieA2 });

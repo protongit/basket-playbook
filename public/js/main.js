@@ -59,6 +59,8 @@ function renderShell(active = "") {
       </nav>
       <div class="topbar-right">
         <button class="btn btn-ghost btn-small" id="export-data">Exportar</button>
+        <button class="btn btn-ghost btn-small" id="import-data">Importar</button>
+        <input id="import-file" type="file" accept="application/json,.json" hidden>
         <div class="user-chip">
           <span class="user-avatar">${escapeHtml(initials)}</span>
           <span class="user-name">${escapeHtml(currentUser?.name || "")}</span>
@@ -74,6 +76,24 @@ function renderShell(active = "") {
     navigate("/login");
   });
   appEl.querySelector("#export-data").addEventListener("click", exportData);
+  appEl.querySelector("#import-data").addEventListener("click", () => {
+    appEl.querySelector("#import-file").click();
+  });
+  appEl.querySelector("#import-file").addEventListener("change", importData);
+}
+
+async function importData(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  try {
+    const payload = JSON.parse(await file.text());
+    const result = await api("/import", { method: "POST", body: payload });
+    showToast(`Importados ${result.imported} playbook(s)`, "success");
+    renderRoute();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
 async function exportData() {

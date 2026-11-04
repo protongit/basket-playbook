@@ -479,6 +479,7 @@ body.is-print .topbar { display: none; }
 }
 @media (max-width: 600px) {
   .book-grid, .play-grid { grid-template-columns: 1fr; }
+  #export-data, #import-data { display: none; }
   .field-row { grid-template-columns: 1fr; }
   .editor-topbar { height: auto; flex-wrap: wrap; padding: 0.7rem; }
   .editor-title { flex: 1 1 100%; }
