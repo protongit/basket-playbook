@@ -426,10 +426,10 @@ export function updatePlay(playId, userId, patch, baseVersion) {
 export function setPlayAnimation(playId, userId, { animation, status, hash }) {
   const result = getDb()
     .prepare(
-      `UPDATE plays SET animation_json = ?, animation_status = ?, animation_hash = ?, updated_at = ?
+      `UPDATE plays SET animation_json = ?, animation_status = ?, animation_hash = ?
        WHERE id = ? AND playbook_id IN (SELECT id FROM playbooks WHERE user_id = ?)`,
     )
-    .run(JSON.stringify(animation), status, hash || null, now(), playId, userId);
+    .run(JSON.stringify(animation), status, hash || null, playId, userId);
   if (!result.changes) throw new HttpError(404, "Jugada no encontrada");
   return getPlay(playId, userId);
 }
