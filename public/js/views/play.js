@@ -73,14 +73,12 @@ export async function renderPlay(container, params, ctx) {
               <button class="btn btn-primary btn-play" id="anim-play">Reproducir</button>
               <input id="anim-scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Progreso de animación">
               <select id="anim-speed" aria-label="Velocidad"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+              <button class="icon-btn expand-animation-btn" id="expand-animation" title="Ampliar animación" aria-label="Ampliar animación"><svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><path d="M3 3l6 6M21 3l-6 6M3 21l6-6M21 21l-6-6"/></svg></button>
             </div>
           </div>
           <div class="animation-foot">
             <div class="animation-note" id="animation-note">
               Animación local determinista entre bloques.
-            </div>
-            <div class="animation-foot-actions">
-              <button class="btn btn-ghost" id="expand-animation">Ampliar</button>
             </div>
           </div>
         </article>
