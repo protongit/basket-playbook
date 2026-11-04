@@ -4,6 +4,8 @@ Pizarra táctica de baloncesto con playbooks, línea de tiempo por bloques y ani
 
 Diseña sistemas de ataque, defensa, BLOB, SLOB, transición o drills; guarda cada jugada en un playbook; reproduce la secuencia; comparte un enlace de solo lectura con tus jugadores.
 
+Repositorio: [github.com/protongit/basket-playbook](https://github.com/protongit/basket-playbook).
+
 ## Qué incluye
 
 - **Cuentas y sesiones** con registro abierto, login, logout y datos privados por usuario.

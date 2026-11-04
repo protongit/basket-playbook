@@ -148,6 +148,14 @@ export async function renderEditor(container, params, ctx) {
 
   async function saveNow() {
     if (state.saving || !state.dirty) return;
+    if (state.conflict) {
+      setSaveStatus("Conflicto: recarga la página", "conflict");
+      return;
+    }
+    if (String(state.play.title || "").trim().length < 2) {
+      setSaveStatus("El título es demasiado corto", "error");
+      return;
+    }
     state.saving = true;
     setSaveStatus("Guardando…", "saving");
     try {
