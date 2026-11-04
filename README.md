@@ -166,10 +166,11 @@ El smoke test usa una base temporal y comprueba registro, sesión, aislamiento e
 ```bash
 node scripts/create-user.mjs <email> <nombre> <contraseña>
 node scripts/seed-demo.mjs <email>
+node scripts/seed-common.mjs <email>
 node scripts/backup-db.mjs
 ```
 
-`backup-db.mjs` crea una copia en `backups/` o en `BACKUP_DIR`.
+`seed-common.mjs` añade el playbook **Jugadas habituales** (Spain PnR, Horns Flare, Pistol/Zoom, Chicago, UCLA, Floppy, Zipper SLOB, Hammer y 2-3) a una cuenta existente. `backup-db.mjs` crea una copia en `backups/` o en `BACKUP_DIR`.
 
 ## Estructura
 

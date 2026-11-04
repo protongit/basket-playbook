@@ -12,6 +12,7 @@
     "dev": "NODE_ENV=development node server/index.mjs",
     "test": "node scripts/smoke.mjs",
     "seed": "node scripts/seed-demo.mjs",
+    "seed-common": "node scripts/seed-common.mjs",
     "backup": "node scripts/backup-db.mjs",
     "create-user": "node scripts/create-user.mjs"
   }
