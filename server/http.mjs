@@ -71,7 +71,7 @@ export function parseCookies(header = "") {
 export function verifyOrigin(req) {
   const origin = req.headers.origin;
   if (!origin) return;
-  const host = req.headers.host;
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
   try {
     if (new URL(origin).host !== host) throw new Error();
   } catch {

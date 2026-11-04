@@ -317,7 +317,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .player.is-selected .selection-ring { opacity: 1; }
 .player.ghost { opacity: 0.38; }
 .player.ghost .player-body { fill: transparent; stroke-dasharray: 5 4; }
-.player.ghost .player-slot, .player.ghost .ball-dot, .player.ghost .ball-ring { display: none; }
+.player.ghost .player-slot, .player.ghost .ball-dot, .player.ghost .ball-ring, .player.ghost .selection-ring { display: none; }
 .action-path { fill: none; stroke-width: 3; }
 .pass-path { stroke-dasharray: 8 6; }
 .screen-path { stroke-width: 2.5; }
