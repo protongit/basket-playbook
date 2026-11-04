@@ -1,4 +1,4 @@
-import { courtDimensions } from "../court.js";
+import { courtDimensions, COURT_METRICS as CM } from "../court.js";
 
 const TRANSITION_MS = 650;
 
@@ -13,7 +13,10 @@ export function buildLocalSpec(play) {
       holdMs: index === 0 ? 900 : Math.max(350, Number(frame.durationMs) || 900),
       caption: frame.label || frame.note || `Bloque ${index + 1}`,
       focusPlayerIds: [],
+      camera: { scale: 1, focusX: 0.5, focusY: 0.52 },
     })),
+    motions: [],
+    passes: [],
     camera: { mode: "fit", padding: 0.08 },
     highlights: [],
   };
@@ -23,11 +26,21 @@ export function normalizeSpec(play, spec) {
   if (!spec || !Array.isArray(spec.beats) || !spec.beats.length) return buildLocalSpec(play);
   const beats = play.frames.map((frame, index) => {
     const source = spec.beats.find((beat) => Number(beat.frameIndex) === index) || {};
+    const camera = source.camera || {};
+    const clamp = (value, min, max, fallback) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
+    };
     return {
       frameIndex: index,
       holdMs: Math.min(4000, Math.max(250, Number(source.holdMs) || 700)),
       caption: String(source.caption || frame.label || frame.note || "").slice(0, 140),
       focusPlayerIds: Array.isArray(source.focusPlayerIds) ? source.focusPlayerIds : [],
+      camera: {
+        scale: clamp(camera.scale, 1, 1.35, 1),
+        focusX: clamp(camera.focusX, 0.12, 0.88, 0.5),
+        focusY: clamp(camera.focusY, 0.12, 0.88, 0.52),
+      },
     };
   });
   return { ...spec, beats };
@@ -75,14 +88,14 @@ export function stateAt(timeline, time) {
     return {
       from: segment.frameIndex,
       to: segment.frameIndex,
-      progress: 0,
+      rawProgress: 0,
       segment,
     };
   }
   return {
     from: segment.from,
     to: segment.to,
-    progress: easeInOut((t - segment.start) / Math.max(1, segment.end - segment.start)),
+    rawProgress: clamp01((t - segment.start) / Math.max(1, segment.end - segment.start)),
     segment,
   };
 }
@@ -91,19 +104,71 @@ export function framePlayerAt(frame, playerId) {
   return frame.players.find((player) => player.id === playerId);
 }
 
-export function interpolatePlayers(play, fromIndex, toIndex, progress) {
+const EASE = {
+  linear: (t) => t,
+  easeIn: (t) => t * t * t,
+  easeOut: (t) => 1 - Math.pow(1 - t, 3),
+  easeInOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  easeInOutQuint: (t) =>
+    t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2,
+  easeOutBack: (t) => {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  },
+};
+
+function clamp01(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function motionFor(spec, playerId, toFrame) {
+  return (spec?.motions || []).find(
+    (motion) => motion.playerId === playerId && Number(motion.toFrame) === Number(toFrame),
+  );
+}
+
+export function interpolatePlayers(play, spec, fromIndex, toIndex, rawProgress) {
   const from = play.frames[fromIndex];
   const to = play.frames[toIndex];
-  const players = to.players.map((target) => {
+  const progress = clamp01(Number(rawProgress) || 0);
+  return to.players.map((target) => {
     const source = from.players.find((player) => player.id === target.id);
-    if (!source || progress <= 0) return { ...target };
+    if (!source || progress <= 0) return { ...target, motion: null };
+    const motion = motionFor(spec, target.id, toIndex);
+    const delay = motion ? Math.min(0.45, Math.max(0, Number(motion.delay) || 0)) : 0;
+    const duration = motion
+      ? Math.min(1.15, Math.max(0.45, Number(motion.durationScale) || 1))
+      : 1;
+    const local = clamp01((progress - delay) / duration);
+    const easing = EASE[motion?.easing] || EASE.easeInOut;
+    const eased = easing(local);
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const lateral = motion ? Math.max(-0.18, Math.min(0.18, Number(motion.lateral) || 0)) : 0;
+    const curve = Math.sin(Math.PI * eased) * lateral;
+    const overshoot = motion
+      ? Math.sin(Math.PI * clamp01(local)) * Math.max(0, Math.min(0.12, Number(motion.overshoot) || 0))
+      : 0;
     return {
       ...target,
-      x: source.x + (target.x - source.x) * progress,
-      y: source.y + (target.y - source.y) * progress,
+      x: Math.max(0.01, Math.min(0.99, source.x + dx * (eased + overshoot) + (-dy / length) * curve)),
+      y: Math.max(0.01, Math.min(0.99, source.y + dy * (eased + overshoot) + (dx / length) * curve)),
+      motion,
     };
   });
-  return players;
+}
+
+function cameraAt(spec, fromIndex, toIndex, rawProgress) {
+  const from = spec?.beats?.[fromIndex]?.camera || { scale: 1, focusX: 0.5, focusY: 0.52 };
+  const to = spec?.beats?.[toIndex]?.camera || from;
+  const progress = fromIndex === toIndex ? 0 : EASE.easeInOut(clamp01(rawProgress));
+  return {
+    scale: Number(from.scale) + (Number(to.scale) - Number(from.scale)) * progress,
+    focusX: Number(from.focusX) + (Number(to.focusX) - Number(from.focusX)) * progress,
+    focusY: Number(from.focusY) + (Number(to.focusY) - Number(from.focusY)) * progress,
+  };
 }
 
 function drawRounded(ctx, x, y, width, height, radius, fill) {
@@ -127,95 +192,189 @@ function drawCourt(ctx, play, area) {
   const oy = area.y + (area.h - height) / 2;
   const px = (x) => ox + x * scale;
   const py = (y) => oy + y * scale;
-  const line = (widthPx = 2, color = "#2c3b4f") => {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = widthPx;
-  };
 
-  ctx.fillStyle = "#0a1220";
-  ctx.fillRect(area.x, area.y, area.w, area.h);
-  drawRounded(ctx, ox, oy, width, height, Math.max(8, 8 * scale), "#d9ad74");
+  drawRounded(ctx, ox, oy, width, height, Math.max(8, 8 * scale), "#d6a363");
   ctx.save();
-  ctx.strokeStyle = "#2c3b4f";
-  ctx.lineWidth = Math.max(1, 2 * scale);
-  ctx.strokeRect(ox, oy, width, height);
+  roundRectPath(ctx, ox, oy, width, height, Math.max(8, 8 * scale));
+  ctx.clip();
+
+  // Barnizado y lamas de parquet.
+  for (let x = ox; x < ox + width; x += 46 * scale) {
+    const index = Math.round((x - ox) / (46 * scale));
+    ctx.fillStyle = index % 2 ? "rgba(176, 116, 58, .10)" : "rgba(255, 232, 190, .045)";
+    ctx.fillRect(x, oy, 46 * scale, height);
+    ctx.strokeStyle = "rgba(126, 76, 34, .20)";
+    ctx.lineWidth = Math.max(0.5, 0.9 * scale);
+    ctx.beginPath();
+    ctx.moveTo(x, oy);
+    ctx.lineTo(x, oy + height);
+    ctx.stroke();
+  }
+  const sheen = ctx.createRadialGradient(
+    ox + width * 0.5,
+    oy + height * 0.35,
+    Math.min(width, height) * 0.05,
+    ox + width * 0.5,
+    oy + height * 0.42,
+    Math.max(width, height) * 0.72,
+  );
+  sheen.addColorStop(0, "rgba(255, 245, 225, .18)");
+  sheen.addColorStop(0.55, "rgba(255, 245, 225, 0)");
+  sheen.addColorStop(1, "rgba(58, 29, 10, .18)");
+  ctx.fillStyle = sheen;
+  ctx.fillRect(ox, oy, width, height);
+
+  ctx.strokeStyle = "#f7f3e8";
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
 
   if (play.court.type === "full") {
-    ctx.beginPath();
-    ctx.moveTo(px(0), py(940));
-    ctx.lineTo(px(1000), py(940));
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(px(500), py(940), 120 * scale, 0, Math.PI * 2);
-    ctx.stroke();
     drawPaintHalf(ctx, scale, ox, oy, 0, false);
-    drawPaintHalf(ctx, scale, ox, oy, 1880, true);
-    drawHoop(ctx, scale, ox, oy, 52);
-    drawHoop(ctx, scale, ox, oy, 1828);
-    drawThree(ctx, scale, ox, oy, 52, false);
-    drawThree(ctx, scale, ox, oy, 1828, true);
+    drawPaintHalf(ctx, scale, ox, oy, CM.fullH, true);
+    drawNoCharge(ctx, scale, ox, oy, CM.basketY, false);
+    drawNoCharge(ctx, scale, ox, oy, CM.fullH - CM.basketY, true);
+    drawHoop(ctx, scale, ox, oy, CM.basketY, false);
+    drawHoop(ctx, scale, ox, oy, CM.fullH - CM.basketY, true);
+    drawThree(ctx, scale, ox, oy, false);
+    drawThree(ctx, scale, ox, oy, true);
+    line(ctx, ox, py(CM.fullH / 2), ox + width, py(CM.fullH / 2), 3.1 * scale);
+    circle(ctx, px(500), py(CM.fullH / 2), CM.ftRadius * scale, 2.6 * scale);
   } else {
     drawPaintHalf(ctx, scale, ox, oy, 0, false);
-    drawHoop(ctx, scale, ox, oy, 52);
-    drawThree(ctx, scale, ox, oy, 52, false);
-    ctx.beginPath();
-    ctx.arc(px(500), py(389), 120 * scale, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(px(500), py(940), 120 * scale, Math.PI, Math.PI * 2);
-    ctx.stroke();
+    drawNoCharge(ctx, scale, ox, oy, CM.basketY, false);
+    drawHoop(ctx, scale, ox, oy, CM.basketY, false);
+    drawThree(ctx, scale, ox, oy, false);
+    line(ctx, 0, py(CM.halfH), ox + width, py(CM.halfH), 3.1 * scale);
+    circle(ctx, px(500), py(CM.halfH), CM.ftRadius * scale, 2.6 * scale);
+  }
+
+  // Línea de fondo y bandas.
+  ctx.strokeStyle = "#f7f3e8";
+  ctx.lineWidth = Math.max(1, 3.1 * scale);
+  ctx.strokeRect(px(1.5), py(1.5), width - 3 * scale, height - 3 * scale);
+  ctx.restore();
+}
+
+function drawPaintHalf(ctx, scale, ox, oy, baselineY, flip) {
+  const top = flip ? baselineY - CM.keyDepth : baselineY;
+  const left = CM.keyLeft;
+  ctx.save();
+  ctx.fillStyle = "rgba(10, 72, 88, .24)";
+  ctx.fillRect(ox + left * scale, oy + top * scale, CM.keyWidth * scale, CM.keyDepth * scale);
+  ctx.strokeStyle = "#f7f3e8";
+  ctx.lineWidth = Math.max(1, 3.1 * scale);
+  ctx.strokeRect(ox + left * scale, oy + top * scale, CM.keyWidth * scale, CM.keyDepth * scale);
+  const ftY = flip ? baselineY - CM.keyDepth : baselineY + CM.keyDepth;
+  circle(ctx, ox + 500 * scale, oy + ftY * scale, CM.ftRadius * scale, 2.4 * scale);
+  line(ctx, ox + 380 * scale, oy + ftY * scale, ox + 620 * scale, oy + ftY * scale, 3.1 * scale);
+  for (const offset of [116.67, 176.67, 236.67]) {
+    const y = flip ? baselineY - offset : baselineY + offset;
+    line(ctx, ox + left * scale, oy + y * scale, ox + (left + 16) * scale, oy + y * scale, 3.6 * scale);
+    line(ctx, ox + (left + CM.keyWidth - 16) * scale, oy + y * scale, ox + (left + CM.keyWidth) * scale, oy + y * scale, 3.6 * scale);
   }
   ctx.restore();
 }
 
-function drawPaintHalf(ctx, scale, ox, oy, y, flip) {
-  const top = flip ? y - 389 : y;
-  const left = 337;
-  const width = 326;
-  const height = 389;
+function drawHoop(ctx, scale, ox, oy, basketY, flip) {
+  const backboardY = flip ? basketY + (CM.basketY - CM.backboardY) : CM.backboardY;
+  const rimR = CM.rimRadius * scale;
+  const netY = flip ? basketY - 26 : basketY + 26;
   ctx.save();
-  ctx.fillStyle = "rgba(124, 45, 18, .16)";
-  ctx.fillRect(ox + left * scale, oy + top * scale, width * scale, height * scale);
-  ctx.strokeStyle = "#2c3b4f";
-  ctx.lineWidth = Math.max(1, 2 * scale);
-  ctx.strokeRect(ox + left * scale, oy + top * scale, width * scale, height * scale);
+  ctx.strokeStyle = "#f8f5ec";
+  ctx.lineWidth = Math.max(2, 6 * scale);
   ctx.beginPath();
-  ctx.arc(ox + 500 * scale, oy + (top + 389) * scale, 120 * scale, 0, Math.PI * 2);
+  ctx.moveTo(ox + (500 - CM.backboardHalf) * scale, oy + backboardY * scale);
+  ctx.lineTo(ox + (500 + CM.backboardHalf) * scale, oy + backboardY * scale);
+  ctx.stroke();
+  ctx.strokeStyle = "#3b4a5e";
+  ctx.lineWidth = Math.max(0.7, 1.4 * scale);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(ox + 500 * scale, oy + basketY * scale, rimR, 0, Math.PI * 2);
+  ctx.strokeStyle = "#f97316";
+  ctx.lineWidth = Math.max(1.5, 3.6 * scale);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(ox + 500 * scale, oy + basketY * scale, rimR * 0.72, 0, Math.PI * 2);
+  ctx.strokeStyle = "#fdba74";
+  ctx.lineWidth = Math.max(0.6, 1.2 * scale);
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(255, 255, 255, .78)";
+  ctx.lineWidth = Math.max(0.45, 1 * scale);
+  ctx.beginPath();
+  for (let index = 0; index < 8; index += 1) {
+    const angle = (index / 8) * Math.PI * 2;
+    const x1 = ox + (500 + Math.cos(angle) * CM.rimRadius) * scale;
+    const y1 = oy + (basketY + Math.sin(angle) * CM.rimRadius) * scale;
+    const x2 = ox + (500 + Math.cos(angle) * CM.rimRadius * 0.58) * scale;
+    const y2 = oy + netY * scale;
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+  }
   ctx.stroke();
   ctx.restore();
 }
 
-function drawHoop(ctx, scale, ox, oy, y) {
+function drawThree(ctx, scale, ox, oy, flip) {
+  const basketY = flip ? CM.fullH - CM.basketY : CM.basketY;
+  const joinY = flip ? CM.fullH - CM.threeJoinY : CM.threeJoinY;
+  const start = Math.atan2(joinY - basketY, CM.threeCornerX - 500);
+  const end = Math.atan2(joinY - basketY, 1000 - CM.threeCornerX - 500);
   ctx.save();
-  ctx.strokeStyle = "#2c3b4f";
-  ctx.lineWidth = Math.max(1, 2 * scale);
+  ctx.strokeStyle = "#f7f3e8";
+  ctx.lineWidth = Math.max(1, 2.8 * scale);
   ctx.beginPath();
-  ctx.moveTo(ox + 440 * scale, oy + (y - 12) * scale);
-  ctx.lineTo(ox + 560 * scale, oy + (y - 12) * scale);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(ox + 500 * scale, oy + y * scale, 22 * scale, 0, Math.PI * 2);
+  ctx.moveTo(ox + CM.threeCornerX * scale, oy + (flip ? CM.fullH : 0) * scale);
+  ctx.lineTo(ox + CM.threeCornerX * scale, oy + joinY * scale);
+  ctx.arc(ox + 500 * scale, oy + basketY * scale, CM.threeRadius * scale, start, end, !flip);
+  ctx.lineTo(ox + (1000 - CM.threeCornerX) * scale, oy + (flip ? CM.fullH : 0) * scale);
   ctx.stroke();
   ctx.restore();
 }
 
-function drawThree(ctx, scale, ox, oy, y, flip) {
+function drawNoCharge(ctx, scale, ox, oy, basketY, flip) {
+  const radius = CM.noChargeRadius * scale;
+  const startY = flip ? basketY + (CM.basketY - CM.backboardY) : CM.backboardY;
   ctx.save();
-  ctx.strokeStyle = "#2c3b4f";
-  ctx.lineWidth = Math.max(1, 2 * scale);
-  const direction = flip ? -1 : 1;
+  ctx.strokeStyle = "rgba(247, 243, 232, .82)";
+  ctx.lineWidth = Math.max(0.7, 2.2 * scale);
   ctx.beginPath();
-  ctx.moveTo(ox + 62 * scale, oy + y * scale);
-  ctx.lineTo(ox + 62 * scale, oy + (y + direction * 120) * scale);
-  const start = Math.atan2(direction * 120, -438);
-  const end = Math.atan2(direction * 120, 438);
-  ctx.arc(ox + 500 * scale, oy + y * scale, 438 * scale, start, end, flip ? false : true);
+  ctx.moveTo(ox + (500 - CM.noChargeRadius) * scale, oy + startY * scale);
+  ctx.lineTo(ox + (500 - CM.noChargeRadius) * scale, oy + basketY * scale);
+  ctx.moveTo(ox + (500 + CM.noChargeRadius) * scale, oy + startY * scale);
+  ctx.lineTo(ox + (500 + CM.noChargeRadius) * scale, oy + basketY * scale);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(ox + 938 * scale, oy + (y + direction * 120) * scale);
-  ctx.lineTo(ox + 938 * scale, oy + y * scale);
+  ctx.arc(ox + 500 * scale, oy + basketY * scale, radius, Math.PI, 0, !flip);
   ctx.stroke();
   ctx.restore();
+}
+
+function line(ctx, x1, y1, x2, y2, width) {
+  ctx.lineWidth = Math.max(1, width);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function circle(ctx, x, y, radius, width) {
+  ctx.lineWidth = Math.max(1, width);
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function roundRectPath(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
 }
 
 function drawPlayer(ctx, player, scale, ox, oy, courtType) {
@@ -224,52 +383,84 @@ function drawPlayer(ctx, player, scale, ox, oy, courtType) {
   const y = oy + player.y * dims.h * scale;
   const radius = (player.team === "defense" ? 25 : 27) * scale;
   ctx.save();
+  ctx.fillStyle = "rgba(38, 20, 8, .18)";
+  ctx.beginPath();
+  ctx.arc(x + 2 * scale, y + 5 * scale, radius + 3 * scale, 0, Math.PI * 2);
+  ctx.fill();
   if (player.hasBall) {
     ctx.beginPath();
-    ctx.arc(x, y, radius + 8 * scale, 0, Math.PI * 2);
+    ctx.arc(x, y, radius + 9 * scale, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(251, 191, 36, .9)";
-    ctx.lineWidth = 3 * scale;
+    ctx.lineWidth = Math.max(1.5, 3 * scale);
     ctx.stroke();
   }
+  const gradient = ctx.createRadialGradient(
+    x - radius * 0.3,
+    y - radius * 0.35,
+    radius * 0.1,
+    x,
+    y,
+    radius,
+  );
+  gradient.addColorStop(0, player.team === "defense" ? "#7dd3fc" : "#fb923c");
+  gradient.addColorStop(1, player.team === "defense" ? "#0284c7" : "#ea580c");
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = player.team === "defense" ? "#38bdf8" : "#f97316";
+  ctx.fillStyle = gradient;
   ctx.fill();
   ctx.strokeStyle = player.team === "defense" ? "#0f2b45" : "#7c2d12";
-  ctx.lineWidth = 2 * scale;
+  ctx.lineWidth = Math.max(1, 2.2 * scale);
   ctx.stroke();
   ctx.fillStyle = "#fff7ed";
-  ctx.font = `600 ${Math.max(11, 18 * scale)}px ui-sans-serif, system-ui`;
+  ctx.font = `700 ${Math.max(10, 18 * scale)}px ui-sans-serif, system-ui`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(player.slot, x, y + 1 * scale);
-  if (player.hasBall) {
-    ctx.beginPath();
-    ctx.arc(x + radius * 0.82, y - radius * 0.82, Math.max(4, 7 * scale), 0, Math.PI * 2);
-    ctx.fillStyle = "#fb923c";
-    ctx.fill();
-    ctx.strokeStyle = "#7c2d12";
-    ctx.lineWidth = Math.max(1, 1.5 * scale);
-    ctx.stroke();
-  }
   ctx.restore();
 }
 
-function drawBall(ctx, x, y, scale) {
+function drawBall(ctx, x, y, scale, rotation = 0) {
+  const radius = Math.max(6, 12 * scale);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.shadowColor = "rgba(55, 28, 10, .35)";
+  ctx.shadowBlur = Math.max(1, 4 * scale);
+  ctx.shadowOffsetY = Math.max(1, 2 * scale);
+  const gradient = ctx.createRadialGradient(-radius * 0.35, -radius * 0.4, radius * 0.1, 0, 0, radius);
+  gradient.addColorStop(0, "#ffc178");
+  gradient.addColorStop(0.38, "#fb923c");
+  gradient.addColorStop(0.72, "#ea580c");
+  gradient.addColorStop(1, "#9a3412");
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = "#7c2d12";
+  ctx.lineWidth = Math.max(0.6, 1.2 * scale);
+  ctx.stroke();
   ctx.save();
   ctx.beginPath();
-  ctx.arc(x, y, Math.max(5, 9 * scale), 0, Math.PI * 2);
-  ctx.fillStyle = "#fb923c";
-  ctx.fill();
-  ctx.strokeStyle = "#7c2d12";
-  ctx.lineWidth = Math.max(1, 2 * scale);
+  ctx.arc(0, 0, radius - 0.4, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.strokeStyle = "rgba(124, 45, 18, .9)";
+  ctx.lineWidth = Math.max(0.5, 1.05 * scale);
+  ctx.beginPath();
+  ctx.moveTo(0, -radius);
+  ctx.lineTo(0, radius);
+  ctx.moveTo(-radius, 0);
+  ctx.lineTo(radius, 0);
+  ctx.moveTo(-radius * 0.72, -radius * 0.72);
+  ctx.quadraticCurveTo(0, 0, radius * 0.72, radius * 0.72);
+  ctx.moveTo(radius * 0.72, -radius * 0.72);
+  ctx.quadraticCurveTo(0, 0, -radius * 0.72, radius * 0.72);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x, y - 9 * scale);
-  ctx.lineTo(x, y + 9 * scale);
-  ctx.moveTo(x - 9 * scale, y);
-  ctx.lineTo(x + 9 * scale, y);
-  ctx.stroke();
+  ctx.ellipse(-radius * 0.28, -radius * 0.38, radius * 0.32, radius * 0.18, -0.55, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 255, 255, .22)";
+  ctx.fill();
+  ctx.restore();
   ctx.restore();
 }
 
@@ -329,20 +520,57 @@ export function drawFrame(ctx, play, spec, time = 0) {
   const courtHeight = dimensions.h * scale;
   const ox = area.x + (area.w - courtWidth) / 2;
   const oy = area.y + (area.h - courtHeight) / 2;
+  const camera = cameraAt(timeline.spec, state.from, state.to, state.rawProgress);
+
+  ctx.save();
+  ctx.translate(width / 2, height / 2);
+  ctx.scale(camera.scale, camera.scale);
+  ctx.translate(
+    -(ox + camera.focusX * dimensions.w * scale),
+    -(oy + camera.focusY * dimensions.h * scale),
+  );
 
   drawCourt(ctx, play, area);
-  if (state.progress > 0) {
+  if (state.rawProgress > 0) {
     drawTrails(ctx, fromFrame, toFrame, scale, ox, oy, play.court.type);
   }
-  const players = interpolatePlayers(play, state.from, state.to, state.progress);
+  const players = interpolatePlayers(play, timeline.spec, state.from, state.to, state.rawProgress);
   const dims = courtDimensions(play.court);
   const currentHolder = players.find((player) => player.hasBall);
-  const previousHolder = state.progress > 0 ? fromFrame.players.find((player) => player.hasBall) : null;
+  const previousHolder = state.rawProgress > 0 ? fromFrame.players.find((player) => player.hasBall) : null;
+
+  const highlights = (timeline.spec.highlights || []).filter(
+    (highlight) => Number(highlight.frameIndex) === state.to,
+  );
+  for (const highlight of highlights) {
+    const player = players.find((item) => item.id === highlight.playerId);
+    if (!player) continue;
+    const x = ox + player.x * dims.w * scale;
+    const y = oy + player.y * dims.h * scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, (40 + Math.sin(time / 220) * 4) * scale, 0, Math.PI * 2);
+    ctx.strokeStyle = highlight.color || "#fbbf24";
+    ctx.globalAlpha = 0.45 + Math.sin(time / 220) * 0.15;
+    ctx.lineWidth = Math.max(1.5, 3.5 * scale);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   for (const player of players) {
     drawPlayer(ctx, player, scale, ox, oy, play.court.type);
   }
 
-  if (currentHolder && previousHolder && previousHolder.id !== currentHolder.id && state.progress > 0) {
+  if (currentHolder && previousHolder && previousHolder.id !== currentHolder.id && state.rawProgress > 0) {
+    const pass = (timeline.spec.passes || []).find(
+      (item) =>
+        Number(item.toFrame) === state.to &&
+        item.fromPlayerId === previousHolder.id &&
+        item.toPlayerId === currentHolder.id,
+    );
+    const speed = Math.min(2, Math.max(0.5, Number(pass?.speed) || 1));
+    const passProgress = clamp01(state.rawProgress * speed);
+    const eased = EASE.easeInOut(passProgress);
     const from = {
       x: ox + previousHolder.x * dims.w * scale,
       y: oy + previousHolder.y * dims.h * scale,
@@ -351,16 +579,21 @@ export function drawFrame(ctx, play, spec, time = 0) {
       x: ox + currentHolder.x * dims.w * scale,
       y: oy + currentHolder.y * dims.h * scale,
     };
-    const t = state.progress;
-    const bulge = -34 * scale * Math.sin(Math.PI * t);
-    const x = from.x + (to.x - from.x) * t;
-    const y = from.y + (to.y - from.y) * t + bulge;
-    drawBall(ctx, x, y, scale);
+    const arc = Math.min(0.5, Math.max(0, Number(pass?.arc) || 0.2));
+    const bulge = -arc * courtHeight * Math.sin(Math.PI * eased);
+    drawBall(
+      ctx,
+      from.x + (to.x - from.x) * eased,
+      from.y + (to.y - from.y) * eased + bulge,
+      scale,
+      eased * 360 * (Number(pass?.spin) || 1),
+    );
   } else if (currentHolder) {
-    const x = ox + currentHolder.x * dims.w * scale + 24 * scale;
-    const y = oy + currentHolder.y * dims.h * scale - 24 * scale;
-    drawBall(ctx, x, y, scale);
+    const x = ox + currentHolder.x * dims.w * scale + 25 * scale;
+    const y = oy + currentHolder.y * dims.h * scale - 25 * scale;
+    drawBall(ctx, x, y, scale, (time / 12) % 360);
   }
+  ctx.restore();
 
   const beat = timeline.spec.beats[state.to] || timeline.spec.beats[state.from];
   drawCaption(ctx, beat?.caption || "", width, height, scale, state.to, play.frames.length);

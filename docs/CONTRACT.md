@@ -70,7 +70,29 @@ AnimationSpec = {
   generatedBy: "ai"|"fallback",
   durationMs: number,
   fps: 24..60,
-  beats: [{ frameIndex, holdMs, caption, focusPlayerIds }],
+  beats: [{
+    frameIndex,
+    holdMs,
+    caption,
+    focusPlayerIds,
+    camera: { scale: 1..1.35, focusX, focusY }
+  }],
+  motions: [{
+    playerId,
+    toFrame,
+    path: "straight"|"curveLeft"|"curveRight"|"sCurve"|"roll"|"pop"|"screen",
+    easing: "linear"|"easeIn"|"easeOut"|"easeInOut"|"easeInOutQuint"|"easeOutBack",
+    delay: 0..0.45,
+    durationScale: 0.45..1.15,
+    lateral: -0.18..0.18,
+    hold: 0..0.35,
+    lean: 0..0.12,
+    overshoot: 0..0.12
+  }],
+  passes: [{
+    toFrame, fromPlayerId, toPlayerId,
+    arc: 0..0.5, speed: 0.5..2, spin: 0..3
+  }],
   camera: { mode: "fit", padding },
   highlights: [{ frameIndex, playerId, color }]
 }

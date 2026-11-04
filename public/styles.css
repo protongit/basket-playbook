@@ -276,6 +276,10 @@ ul { margin: 0; padding: 0; list-style: none; }
 .animation-controls select { border: 1px solid var(--line); background: #0b1524; color: var(--text); border-radius: 7px; padding: 0.35rem; font-size: 0.75rem; }
 .animation-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0 1rem 1rem; }
 .animation-note { color: var(--muted); font-size: 0.78rem; }
+.animation-head-tools { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.animation-mode { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: rgba(11,19,34,.65); }
+.animation-mode button { border: 0; background: transparent; color: var(--muted); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 999px; padding: 0.22rem 0.55rem; }
+.animation-mode button.is-active { color: #1b0c03; background: var(--orange-bright); }
 .status-pill { display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 999px; padding: 0.2rem 0.55rem; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: rgba(148,163,184,.1); border: 1px solid var(--line); }
 .status-pill.ready { color: var(--green); border-color: rgba(163,230,53,.3); background: rgba(163,230,53,.1); }
 .status-pill.fallback { color: var(--amber); border-color: rgba(251,191,36,.3); background: rgba(251,191,36,.1); }
@@ -299,25 +303,40 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 /* ---------- Court SVG ---------- */
 .court-svg { width: 100%; height: auto; display: block; }
-.court-wood { fill: #d9ad74; }
-.court-lines { stroke: #2c3b4f; stroke-width: 2.5; fill: none; }
-.court-paint { fill: rgba(124, 45, 18, 0.16); }
-.court-board { stroke-width: 3; }
-.court-hoop { stroke-width: 3; }
-.court-three { stroke-width: 2.5; }
-.court-label { fill: rgba(44, 59, 79, 0.55); font-size: 14px; font-weight: 800; letter-spacing: 2px; }
+.court-apron { fill: #2b1b10; }
+.court-floor { fill: #d6a363; }
+.court-floor-shade { pointer-events: none; }
+.court-lines { stroke: #f7f3e8; stroke-width: 2.6; fill: none; }
+.court-line { filter: drop-shadow(0 1px 0 rgba(55, 31, 12, 0.28)); }
+.court-boundary, .court-key-line { stroke-width: 3.1; }
+.court-paint { fill: rgba(10, 72, 88, 0.24); }
+.court-ft-circle { stroke-width: 2.4; }
+.court-half-line { stroke-width: 3.1; }
+.court-centre-circle { stroke-width: 2.6; }
+.court-three { stroke-width: 2.8; }
+.court-lane-mark { stroke-width: 3.6; }
+.court-no-charge-arc, .court-no-charge-line { stroke-width: 2.2; opacity: 0.82; }
+.court-backboard { fill: #f8f5ec; stroke: #3b4a5e; stroke-width: 2; }
+.court-rim { fill: none; stroke: #f97316; stroke-width: 4; }
+.court-rim-inner { fill: none; stroke: #fdba74; stroke-width: 1.4; }
+.court-rim-shadow { fill: rgba(53, 28, 10, 0.25); }
+.court-net { stroke: rgba(255, 255, 255, 0.8); stroke-width: 1.15; fill: none; }
+.court-net-ring { fill: none; stroke: rgba(255, 255, 255, 0.65); stroke-width: 1; }
+.court-label, .court-league { fill: rgba(55, 31, 12, 0.42); font-size: 13px; font-weight: 800; letter-spacing: 1.6px; }
+.court-league { font-size: 12px; letter-spacing: 2px; }
 .player { cursor: grab; }
 .player:active { cursor: grabbing; }
-.player-body { stroke-width: 2.5; filter: drop-shadow(0 2px 2px rgba(0,0,0,.18)); }
+.player-halo { fill: rgba(38, 20, 8, 0.18); }
+.player-body { stroke-width: 2.5; filter: drop-shadow(0 3px 3px rgba(38, 20, 8, 0.28)); }
 .player-slot { fill: #fff7ed; font-size: 19px; font-weight: 800; pointer-events: none; }
 .defense .player-slot { fill: #03131d; }
-.ball-ring { fill: none; stroke: #fbbf24; stroke-width: 3; }
-.ball-dot { fill: #fb923c; stroke: #7c2d12; stroke-width: 1.5; }
+.ball-ring { fill: none; stroke: #fbbf24; stroke-width: 3; filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.55)); }
+.basketball { filter: drop-shadow(0 2px 3px rgba(55, 28, 10, 0.35)); }
 .selection-ring { fill: none; stroke: #fbbf24; stroke-width: 3; stroke-dasharray: 7 5; opacity: 0; pointer-events: none; }
 .player.is-selected .selection-ring { opacity: 1; }
 .player.ghost { opacity: 0.38; }
 .player.ghost .player-body { fill: transparent; stroke-dasharray: 5 4; }
-.player.ghost .player-slot, .player.ghost .ball-dot, .player.ghost .ball-ring, .player.ghost .selection-ring { display: none; }
+.player.ghost .player-slot, .player.ghost .ball-ring, .player.ghost .selection-ring, .player.ghost .basketball, .player.ghost .player-halo { display: none; }
 .action-path { fill: none; stroke-width: 3; }
 .pass-path { stroke-dasharray: 8 6; }
 .screen-path { stroke-width: 2.5; }

@@ -58,7 +58,9 @@ export function openModal(content, options = {}) {
   backdrop.addEventListener("click", (event) => {
     if (event.target === backdrop) close();
   });
-  backdrop.querySelector("[data-close]")?.addEventListener("click", close);
+  backdrop.querySelectorAll("[data-close]").forEach((button) => {
+    button.addEventListener("click", close);
+  });
   document.addEventListener(
     "keydown",
     (event) => {

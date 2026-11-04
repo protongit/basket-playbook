@@ -1,72 +1,191 @@
-const NS = {
-  half: { w: 1000, h: 940 },
-  full: { w: 1000, h: 1880 },
+const FIBA = {
+  width: 15,
+  halfLength: 14,
+  fullLength: 28,
+  basketFromBaseline: 1.575,
+  keyDepth: 5.8,
+  keyWidth: 4.9,
+  freeThrowRadius: 1.8,
+  threeRadius: 6.75,
+  threeCornerInset: 0.9,
+  noChargeRadius: 1.25,
+  backboardFromBaseline: 1.2,
+  backboardWidth: 1.8,
+  rimRadius: 0.225,
 };
+
+const SCALE = 1000 / FIBA.width;
+const HALF_H = FIBA.halfLength * SCALE;
+const FULL_H = FIBA.fullLength * SCALE;
+const BASKET_Y = FIBA.basketFromBaseline * SCALE;
+const KEY_DEPTH = FIBA.keyDepth * SCALE;
+const KEY_WIDTH = FIBA.keyWidth * SCALE;
+const KEY_LEFT = (1000 - KEY_WIDTH) / 2;
+const FT_RADIUS = FIBA.freeThrowRadius * SCALE;
+const THREE_RADIUS = FIBA.threeRadius * SCALE;
+const THREE_CORNER_X = FIBA.threeCornerInset * SCALE;
+const THREE_JOIN_Y = Math.sqrt(
+  THREE_RADIUS ** 2 - (500 - THREE_CORNER_X) ** 2,
+) + BASKET_Y;
+const NO_CHARGE_RADIUS = FIBA.noChargeRadius * SCALE;
+const BACKBOARD_Y = FIBA.backboardFromBaseline * SCALE;
+const BACKBOARD_HALF = (FIBA.backboardWidth * SCALE) / 2;
+const RIM_RADIUS = FIBA.rimRadius * SCALE;
+
+const NS = {
+  half: { w: 1000, h: HALF_H },
+  full: { w: 1000, h: FULL_H },
+};
+
+export const COURT_METRICS = {
+  halfH: HALF_H,
+  fullH: FULL_H,
+  basketY: BASKET_Y,
+  keyDepth: KEY_DEPTH,
+  keyWidth: KEY_WIDTH,
+  keyLeft: KEY_LEFT,
+  ftRadius: FT_RADIUS,
+  threeRadius: THREE_RADIUS,
+  threeCornerX: THREE_CORNER_X,
+  threeJoinY: THREE_JOIN_Y,
+  noChargeRadius: NO_CHARGE_RADIUS,
+  backboardY: BACKBOARD_Y,
+  backboardHalf: BACKBOARD_HALF,
+  rimRadius: RIM_RADIUS,
+};
+
+let svgSequence = 0;
+function svgId() {
+  svgSequence += 1;
+  return `bp-${svgSequence}`;
+}
 
 export function courtDimensions(court = {}) {
   return NS[court.type] || NS.half;
 }
 
-function courtLines(court) {
-  if (court.type === "full") {
-    return `
-      <rect class="court-line" x="8" y="8" width="984" height="1864" rx="6"/>
-      <line class="court-line" x1="8" y1="940" x2="992" y2="940"/>
-      <circle class="court-line" cx="500" cy="940" r="120"/>
-      <line class="court-line" x1="8" y1="8" x2="992" y2="8"/>
-      <line class="court-line" x1="8" y1="1872" x2="992" y2="1872"/>
-      ${paint(0, false)}
-      ${paint(1880, true)}
-      ${hoop(52)}
-      ${hoop(1828)}
-      ${threePoint(52, false)}
-      ${threePoint(1828, true)}
-      <line class="court-line" x1="8" y1="470" x2="992" y2="470" stroke-dasharray="10 14" opacity=".35"/>
-      <line class="court-line" x1="8" y1="1410" x2="992" y2="1410" stroke-dasharray="10 14" opacity=".35"/>
-    `;
+function ballDefs(id) {
+  return `
+    <radialGradient id="ball-grad-${id}" cx="34%" cy="24%" r="78%">
+      <stop offset="0%" stop-color="#ffc178"/>
+      <stop offset="38%" stop-color="#fb923c"/>
+      <stop offset="72%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#9a3412"/>
+    </radialGradient>
+    <symbol id="ball-${id}" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="13.6" fill="url(#ball-grad-${id})" stroke="#7c2d12" stroke-width="1.2"/>
+      <path d="M 2.6 16 H 29.4 M 16 2.6 V 29.4 M 6.2 6.2 C 11.5 11 20.5 20 25.8 25.8 M 25.8 6.2 C 20.5 11 11.5 20 6.2 25.8" fill="none" stroke="#7c2d12" stroke-width="1.15" opacity=".9"/>
+      <ellipse cx="11" cy="9.5" rx="4.8" ry="2.4" fill="#fff" opacity=".26" transform="rotate(-32 11 9.5)"/>
+    </symbol>`;
+}
+
+function floorDefs(id) {
+  return `
+    <pattern id="wood-${id}" width="46" height="46" patternUnits="userSpaceOnUse">
+      <rect width="46" height="46" fill="#d6a363"/>
+      <rect width="23" height="46" fill="#d19a59" opacity=".38"/>
+      <path d="M 0 0 V 46 M 23 0 V 46" stroke="#b47a3e" stroke-width="1.1" opacity=".32"/>
+      <path d="M 2 9 H 21 M 25 28 H 44 M 3 38 H 20" stroke="#b47a3e" stroke-width=".55" opacity=".18"/>
+    </pattern>
+    <radialGradient id="court-shade-${id}" cx="50%" cy="38%" r="74%">
+      <stop offset="0%" stop-color="#fff5e5" stop-opacity=".16"/>
+      <stop offset="58%" stop-color="#fff5e5" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#4a250f" stop-opacity=".22"/>
+    </radialGradient>`;
+}
+
+function hoopMarkup(basketY, flip = false) {
+  const backboardY = flip ? basketY + (BASKET_Y - BACKBOARD_Y) : BACKBOARD_Y;
+  const netY = flip ? basketY - 26 : basketY + 26;
+  const spokes = Array.from({ length: 8 }, (_, index) => {
+    const angle = (index / 8) * Math.PI * 2;
+    const x1 = 500 + Math.cos(angle) * RIM_RADIUS;
+    const y1 = basketY + Math.sin(angle) * RIM_RADIUS;
+    const x2 = 500 + Math.cos(angle) * (RIM_RADIUS * 0.58);
+    return `M ${x1} ${y1} L ${x2} ${netY}`;
+  }).join(" ");
+  return `
+    <g class="court-hoop-group">
+      <rect class="court-backboard" x="${500 - BACKBOARD_HALF}" y="${backboardY - 4}" width="${BACKBOARD_HALF * 2}" height="8" rx="2"/>
+      <circle class="court-rim-shadow" cx="500" cy="${basketY + (flip ? -3 : 3)}" r="${RIM_RADIUS + 1}" />
+      <circle class="court-rim" cx="500" cy="${basketY}" r="${RIM_RADIUS}"/>
+      <circle class="court-rim-inner" cx="500" cy="${basketY}" r="${RIM_RADIUS * 0.74}"/>
+      <path class="court-net" d="${spokes}"/>
+      <circle class="court-net-ring" cx="500" cy="${netY}" r="${RIM_RADIUS * 0.46}"/>
+    </g>`;
+}
+
+function keyMarkup(baselineY, flip = false) {
+  const topY = flip ? baselineY - KEY_DEPTH : baselineY;
+  const ftY = flip ? baselineY - KEY_DEPTH : baselineY + KEY_DEPTH;
+  const marks = [116.67, 176.67, 236.67];
+  return `
+    <g class="court-key-group">
+      <rect class="court-paint" x="${KEY_LEFT}" y="${topY}" width="${KEY_WIDTH}" height="${KEY_DEPTH}"/>
+      <rect class="court-line court-key-line" x="${KEY_LEFT}" y="${topY}" width="${KEY_WIDTH}" height="${KEY_DEPTH}"/>
+      <line class="court-line court-ft-line" x1="${500 - FT_RADIUS}" y1="${ftY}" x2="${500 + FT_RADIUS}" y2="${ftY}"/>
+      <circle class="court-line court-ft-circle" cx="500" cy="${ftY}" r="${FT_RADIUS}"/>
+      ${marks
+        .map((offset) => {
+          const y = flip ? baselineY - offset : baselineY + offset;
+          return `<line class="court-line court-lane-mark" x1="${KEY_LEFT}" y1="${y}" x2="${KEY_LEFT + 16}" y2="${y}"/>
+             <line class="court-line court-lane-mark" x1="${KEY_LEFT + KEY_WIDTH - 16}" y1="${y}" x2="${KEY_LEFT + KEY_WIDTH}" y2="${y}"/>`;
+        })
+        .join("")}
+    </g>`;
+}
+
+function noChargeMarkup(basketY, flip = false) {
+  const left = 500 - NO_CHARGE_RADIUS;
+  const right = 500 + NO_CHARGE_RADIUS;
+  const startY = flip ? basketY + (BASKET_Y - BACKBOARD_Y) : BACKBOARD_Y;
+  const arcSweep = flip ? 1 : 0;
+  return `
+    <g class="court-no-charge">
+      <line class="court-line court-no-charge-line" x1="${left}" y1="${startY}" x2="${left}" y2="${basketY}"/>
+      <line class="court-line court-no-charge-line" x1="${right}" y1="${startY}" x2="${right}" y2="${basketY}"/>
+      <path class="court-line court-no-charge-arc" d="M ${left} ${basketY} A ${NO_CHARGE_RADIUS} ${NO_CHARGE_RADIUS} 0 0 ${arcSweep} ${right} ${basketY}"/>
+    </g>`;
+}
+
+function threePointMarkup(basketY, flip = false) {
+  if (flip) {
+    return `<path class="court-line court-three" d="M ${THREE_CORNER_X} ${FULL_H} L ${THREE_CORNER_X} ${FULL_H - THREE_JOIN_Y} A ${THREE_RADIUS} ${THREE_RADIUS} 0 0 1 ${1000 - THREE_CORNER_X} ${FULL_H - THREE_JOIN_Y} L ${1000 - THREE_CORNER_X} ${FULL_H}"/>`;
   }
-  return `
-    <rect class="court-line" x="8" y="8" width="984" height="924" rx="6"/>
-    ${paint(0, false)}
-    ${hoop(52)}
-    ${threePoint(52, false)}
-    <circle class="court-line" cx="500" cy="389" r="120"/>
-    <line class="court-line" x1="8" y1="932" x2="992" y2="932"/>
-    <path class="court-line" d="M 380 932 A 120 120 0 0 0 620 932" opacity=".7"/>
-    <line class="court-line" x1="340" y1="300" x2="660" y2="300" stroke-dasharray="10 14" opacity=".35"/>
-  `;
+  return `<path class="court-line court-three" d="M ${THREE_CORNER_X} 0 L ${THREE_CORNER_X} ${THREE_JOIN_Y} A ${THREE_RADIUS} ${THREE_RADIUS} 0 0 0 ${1000 - THREE_CORNER_X} ${THREE_JOIN_Y} L ${1000 - THREE_CORNER_X} 0"/>`;
 }
 
-function paint(y, flip) {
-  const top = flip ? y - 389 : y;
+function halfMarkings() {
   return `
-    <rect class="court-paint" x="337" y="${top}" width="326" height="389"/>
-    <rect class="court-line" x="337" y="${top}" width="326" height="389"/>
-    <circle class="court-line" cx="500" cy="${top + 389}" r="120"/>
-    <line class="court-line" x1="337" y1="${top + 389}" x2="663" y2="${top + 389}"/>
-  `;
+    <rect class="court-line court-boundary" x="1.5" y="1.5" width="997" height="${HALF_H - 3}" rx="3"/>
+    ${keyMarkup(0)}
+    ${noChargeMarkup(BASKET_Y)}
+    ${hoopMarkup(BASKET_Y)}
+    ${threePointMarkup(BASKET_Y, false)}
+    <line class="court-line court-half-line" x1="0" y1="${HALF_H}" x2="1000" y2="${HALF_H}"/>
+    <circle class="court-line court-centre-circle" cx="500" cy="${HALF_H}" r="${FT_RADIUS}"/>
+    <text class="court-label" x="24" y="${HALF_H - 16}">FIBA · 28 × 15 m</text>`;
 }
 
-function hoop(y) {
+function fullMarkings() {
+  const bottom = FULL_H;
   return `
-    <line class="court-line court-board" x1="440" y1="${y - 12}" x2="560" y2="${y - 12}"/>
-    <circle class="court-line court-hoop" cx="500" cy="${y}" r="22"/>
-    <path class="court-line" d="M 440 ${y + 64} A 60 60 0 0 0 560 ${y + 64}" opacity=".75"/>
-  `;
-}
-
-function threePoint(y, flip) {
-  const dir = flip ? -1 : 1;
-  return `
-    <path class="court-line court-three" d="M 62 ${y} L 62 ${y + dir * 120} A 438 438 0 0 ${flip ? 0 : 1} 938 ${y + dir * 120} L 938 ${y}"/>
-  `;
+    <rect class="court-line court-boundary" x="1.5" y="1.5" width="997" height="${bottom - 3}" rx="3"/>
+    ${keyMarkup(0)}
+    ${keyMarkup(bottom, true)}
+    ${noChargeMarkup(BASKET_Y)}
+    ${noChargeMarkup(bottom - BASKET_Y, true)}
+    ${hoopMarkup(BASKET_Y)}
+    ${hoopMarkup(bottom - BASKET_Y, true)}
+    ${threePointMarkup(BASKET_Y, false)}
+    ${threePointMarkup(bottom - BASKET_Y, true)}
+    <line class="court-line court-half-line" x1="0" y1="${bottom / 2}" x2="1000" y2="${bottom / 2}"/>
+    <circle class="court-line court-centre-circle" cx="500" cy="${bottom / 2}" r="${FT_RADIUS}"/>
+    <text class="court-label" x="24" y="${bottom - 16}">FIBA · 28 × 15 m</text>`;
 }
 
 function pt(player, dimensions) {
-  return {
-    x: player.x * dimensions.w,
-    y: player.y * dimensions.h,
-  };
+  return { x: player.x * dimensions.w, y: player.y * dimensions.h };
 }
 
 function pathArrow(x1, y1, x2, y2, bend = 0) {
@@ -100,7 +219,7 @@ function zigzag(x1, y1, x2, y2, segments = 8, amplitude = 15) {
   return `M ${points.join(" L ")}`;
 }
 
-function actionMarkup(frame, previousFrame, court, selectedPlayerId) {
+function actionMarkup(frame, previousFrame, court, selectedPlayerId, ballId) {
   if (!previousFrame) return "";
   const dimensions = courtDimensions(court);
   const previousPlayers = new Map(previousFrame.players.map((player) => [player.id, player]));
@@ -114,29 +233,27 @@ function actionMarkup(frame, previousFrame, court, selectedPlayerId) {
     const player = currentPlayers.get(action.playerId);
     const previous = previousPlayers.get(action.playerId);
     if (!player || !previous) continue;
-
     const team = player.team === "defense" ? "defense" : "offense";
-    const color =
-      team === "defense" ? "var(--court-defense)" : "var(--court-action)";
+    const color = team === "defense" ? "var(--court-defense)" : "var(--court-action)";
     const highlight = player.id === selectedPlayerId ? " is-selected" : "";
     const p1 = pt(previous, dimensions);
     const p2 = pt(player, dimensions);
     const cls = `action action-${action.type} ${team}${highlight}`;
 
     if (action.type === "pass") {
-      const from = previousHolder
-        ? pt(previousHolder, dimensions)
-        : { x: p1.x, y: p1.y };
+      const from = previousHolder ? pt(previousHolder, dimensions) : p1;
       const target = action.targetId ? currentPlayers.get(action.targetId) : currentHolder;
       if (!target) continue;
       const to = pt(target, dimensions);
-      markup += `<g class="${cls}"><path class="action-path pass-path" d="${pathArrow(from.x, from.y, to.x, to.y, 38)}" style="stroke:${color}"/><path class="action-head" d="${head(from.x, from.y, to.x, to.y, 20)}" style="fill:${color}"/><circle class="ball-fly" cx="${(from.x + to.x) / 2}" cy="${(from.y + to.y) / 2}" r="8"/></g>`;
+      const mx = (from.x + to.x) / 2;
+      const my = (from.y + to.y) / 2;
+      markup += `<g class="${cls}"><path class="action-path pass-path" d="${pathArrow(from.x, from.y, to.x, to.y, 42)}" style="stroke:${color}"/><path class="action-head" d="${head(from.x, from.y, to.x, to.y, 20)}" style="fill:${color}"/>${ballMarkup(ballId, mx, my, 27, 32)}</g>`;
       continue;
     }
 
     if (action.type === "screen") {
       const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) + Math.PI / 2;
-      const half = 34;
+      const half = 36;
       markup += `<g class="${cls}"><path class="action-path screen-path" d="M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}" style="stroke:${color}"/><path class="screen-bar" d="M ${p2.x - Math.cos(angle) * half} ${p2.y - Math.sin(angle) * half} L ${p2.x + Math.cos(angle) * half} ${p2.y + Math.sin(angle) * half}" style="stroke:${color}"/><text class="action-label" x="${p2.x + 22}" y="${p2.y - 22}" style="fill:${color}">B</text></g>`;
       continue;
     }
@@ -156,26 +273,30 @@ function actionMarkup(frame, previousFrame, court, selectedPlayerId) {
       continue;
     }
 
-    const bend = action.type === "roll" ? 55 : action.type === "pop" ? -50 : 0;
+    const bend = action.type === "roll" ? 58 : action.type === "pop" ? -52 : 0;
     markup += `<g class="${cls}"><path class="action-path ${action.type}-path" d="${pathArrow(p1.x, p1.y, p2.x, p2.y, bend)}" style="stroke:${color}"/><path class="action-head" d="${head(p1.x, p1.y, p2.x, p2.y, 17)}" style="fill:${color}"/></g>`;
   }
   return markup;
 }
 
-function playerMarkup(player, dimensions, selectedId, ghost = false) {
+export function ballMarkup(id, x, y, size = 28, rotation = 0) {
+  return `<g class="basketball" transform="translate(${x} ${y}) rotate(${rotation})"><use href="#ball-${id}" x="${-size / 2}" y="${-size / 2}" width="${size}" height="${size}"/></g>`;
+}
+
+function playerMarkup(player, dimensions, selectedId, ghost = false, ballId = null) {
   const { x, y } = pt(player, dimensions);
   const isDefense = player.team === "defense";
-  const color = isDefense ? "#0f2b45" : "#7c2d12";
-  const fill = isDefense ? "#38bdf8" : "#f97316";
   const selected = player.id === selectedId && !ghost;
+  const ballSize = ghost ? 0 : 29;
   return `
     <g class="player ${isDefense ? "defense" : "offense"} ${selected ? "is-selected" : ""} ${ghost ? "ghost" : ""}"
        data-player-id="${player.id}" transform="translate(${x} ${y})">
-      ${player.hasBall ? `<circle class="ball-ring" r="34"/>` : ""}
-      <circle class="player-body" r="${isDefense ? 25 : 27}" fill="${fill}" stroke="${color}"/>
+      ${player.hasBall ? `<circle class="ball-ring" r="37"/>` : ""}
+      <circle class="player-halo" r="${isDefense ? 29 : 31}"/>
+      <circle class="player-body" r="${isDefense ? 25 : 27}" fill="${isDefense ? "#38bdf8" : "#f97316"}" stroke="${isDefense ? "#0f2b45" : "#7c2d12"}"/>
       <text class="player-slot" text-anchor="middle" dy=".36em">${player.slot}</text>
-      ${player.hasBall ? `<circle class="ball-dot" cx="23" cy="-23" r="8"/>` : ""}
-      <circle class="selection-ring" r="38"/>
+      ${player.hasBall && ballId ? ballMarkup(ballId, 28, -28, ballSize, 18) : ""}
+      <circle class="selection-ring" r="39"/>
     </g>`;
 }
 
@@ -190,38 +311,41 @@ export function renderCourtSvg({
   className = "",
 }) {
   const dimensions = courtDimensions(court);
-  const dual = court.type === "full";
+  const id = svgId();
   const ghost = showGhost && previousFrame ? previousFrame.players : [];
   return `<svg class="court-svg ${className}" viewBox="0 0 ${dimensions.w} ${dimensions.h}"
-    preserveAspectRatio="xMidYMid meet" role="img" aria-label="Pizarra de baloncesto"
+    preserveAspectRatio="xMidYMid meet" role="img" aria-label="Pista de baloncesto FIBA"
     ${interactive ? 'data-interactive="true"' : ""}>
-    <rect class="court-wood" x="0" y="0" width="${dimensions.w}" height="${dimensions.h}"/>
-    <g class="court-lines">${courtLines(court)}</g>
-    ${dual ? "" : `<text class="court-label" x="30" y="${dimensions.h - 24}">${(court.league || "fiba").toUpperCase()} · MEDIA PISTA</text>`}
+    <defs>${floorDefs(id)}${ballDefs(id)}</defs>
+    <rect class="court-apron" x="0" y="0" width="${dimensions.w}" height="${dimensions.h}"/>
+    <rect class="court-floor" x="0" y="0" width="${dimensions.w}" height="${dimensions.h}" fill="url(#wood-${id})"/>
+    <rect class="court-floor-shade" x="0" y="0" width="${dimensions.w}" height="${dimensions.h}" fill="url(#court-shade-${id})"/>
+    <g class="court-lines">${court.type === "full" ? fullMarkings() : halfMarkings()}</g>
     ${ghost
-      .map((player) => {
-        const marker = playerMarkup(player, dimensions, null, true);
-        return marker;
-      })
+      .map((player) => playerMarkup(player, dimensions, null, true, null))
       .join("")}
-    ${actionMarkup(frame, previousFrame, court, selectedPlayerId)}
+    ${actionMarkup(frame, previousFrame, court, selectedPlayerId, id)}
     ${frame.players
-      .map((player) => playerMarkup(player, dimensions, selectedPlayerId, false))
+      .map((player) => playerMarkup(player, dimensions, selectedPlayerId, false, id))
       .join("")}
+    ${mini ? "" : `<text class="court-league" x="${dimensions.w - 24}" y="${dimensions.h - 16}" text-anchor="end">${(court.league || "fiba").toUpperCase()}</text>`}
   </svg>`;
 }
 
 export function renderMiniCourt(frame, court = { type: "half" }) {
   const dimensions = courtDimensions(court);
+  const id = svgId();
   return `<svg class="mini-court" viewBox="0 0 ${dimensions.w} ${dimensions.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <rect class="mini-wood" width="${dimensions.w}" height="${dimensions.h}"/>
-    <rect class="mini-line" x="10" y="10" width="${dimensions.w - 20}" height="${dimensions.h - 20}" rx="10"/>
-    ${court.type === "half" ? `<rect class="mini-paint" x="337" y="8" width="326" height="389"/><circle class="mini-line" cx="500" cy="389" r="120"/><path class="mini-line" d="M 62 8 L 62 128 A 438 438 0 0 1 938 128 L 938 8"/>` : `<line class="mini-line" x1="10" y1="${dimensions.h / 2}" x2="${dimensions.w - 10}" y2="${dimensions.h / 2}"/><circle class="mini-line" cx="${dimensions.w / 2}" cy="${dimensions.h / 2}" r="120"/>`}
+    <defs>${floorDefs(id)}${ballDefs(id)}</defs>
+    <rect class="court-apron" width="${dimensions.w}" height="${dimensions.h}"/>
+    <rect class="court-floor" width="${dimensions.w}" height="${dimensions.h}" fill="url(#wood-${id})"/>
+    <rect class="court-floor-shade" width="${dimensions.w}" height="${dimensions.h}" fill="url(#court-shade-${id})"/>
+    <g class="court-lines">${(court.type === "full" ? fullMarkings() : halfMarkings()).replace(/<text[\s\S]*?<\/text>/g, "")}</g>
     ${frame.players
       .map((player) => {
         const x = player.x * dimensions.w;
         const y = player.y * dimensions.h;
-        return `<circle cx="${x}" cy="${y}" r="${player.team === "defense" ? 20 : 22}" fill="${player.team === "defense" ? "#38bdf8" : "#f97316"}"/><text x="${x}" y="${y + 7}" text-anchor="middle" class="mini-slot">${player.slot}</text>`;
+        return `<g class="mini-player ${player.team}" transform="translate(${x} ${y})"><circle r="${player.team === "defense" ? 20 : 22}" fill="${player.team === "defense" ? "#38bdf8" : "#f97316"}"/><text x="0" y="7" text-anchor="middle" class="mini-slot">${player.slot}</text>${player.hasBall ? ballMarkup(id, 15, -16, 24, 20) : ""}</g>`;
       })
       .join("")}
   </svg>`;

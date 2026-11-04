@@ -25,7 +25,7 @@ export async function renderPlay(container, params, ctx) {
 
   let selectedFrame = 0;
   let playback = null;
-  const spec = play.animation?.spec || buildLocalSpec(play);
+  let animationMode = play.animation?.source === "ai" ? "ai" : "local";
 
   container.innerHTML = `
     <section class="page-head play-head">
@@ -65,7 +65,10 @@ export async function renderPlay(container, params, ctx) {
         <article class="panel animation-panel">
           <div class="panel-head">
             <div><span class="eyebrow">Animación</span><h2>Movimiento de la jugada</h2></div>
-            <span class="status-pill ${play.animationStatus === "ready" ? "ready" : play.animationStatus === "fallback" ? "fallback" : "draft"}">${play.animationStatus === "ready" ? "IA lista" : play.animationStatus === "fallback" ? "Fallback local" : "Sin generar"}</span>
+            <div class="animation-head-tools">
+              ${play.animation?.source === "ai" ? `<div class="animation-mode" id="anim-mode"><button data-anim-mode="ai" class="${animationMode === "ai" ? "is-active" : ""}">IA</button><button data-anim-mode="local" class="${animationMode === "local" ? "is-active" : ""}">Local</button></div>` : ""}
+              <span class="status-pill ${play.animationStatus === "ready" ? "ready" : play.animationStatus === "fallback" ? "fallback" : "draft"}">${play.animationStatus === "ready" ? "IA lista" : play.animationStatus === "fallback" ? "Fallback local" : "Sin generar"}</span>
+            </div>
           </div>
           <div class="animation-stage">
             <canvas id="animation-canvas" width="1000" height="780"></canvas>
@@ -143,7 +146,10 @@ export async function renderPlay(container, params, ctx) {
     const scrub = container.querySelector("#anim-scrub");
     const playButton = container.querySelector("#anim-play");
     const speed = container.querySelector("#anim-speed");
-    const currentSpec = play.animation?.spec || buildLocalSpec(play);
+    const currentSpec =
+      animationMode === "ai" && play.animation?.spec
+        ? play.animation.spec
+        : buildLocalSpec(play);
     playback = createPlayback(canvas, play, currentSpec, {
       loop: true,
       onStateChange(playing, time, total) {
@@ -154,10 +160,32 @@ export async function renderPlay(container, params, ctx) {
     playButton.onclick = () => playback.toggle();
     scrub.oninput = () => playback.seek((Number(scrub.value) / 1000) * playback.timeline.total);
     speed.onchange = () => playback.setSpeed(Number(speed.value));
+    updateAnimationNote();
+  }
+
+  function updateAnimationNote() {
+    const note = container.querySelector("#animation-note");
+    if (!note) return;
+    if (animationMode === "ai" && play.animation?.spec && play.animation.source === "ai") {
+      note.innerHTML = `Movimiento reinterpretado por <strong>${escapeHtml(play.animation.model || "la IA")}</strong>: curvas, tiempos, pausas y cámara.`;
+    } else if (play.animation?.source === "fallback") {
+      note.innerHTML = `La IA no pudo reinterpretar la jugada; se muestra la animación local.${play.animation.error ? `<span class="warn-text">${escapeHtml(play.animation.error)}</span>` : ""}`;
+    } else {
+      note.innerHTML = "Animación local determinista: interpolación directa entre bloques. Genera con IA para ver la reinterpretación con curvas, pausas y cámara.";
+    }
   }
 
   renderDiagram();
   initPlayback();
+  for (const button of container.querySelectorAll("[data-anim-mode]")) {
+    button.addEventListener("click", () => {
+      animationMode = button.dataset.animMode;
+      for (const item of container.querySelectorAll("[data-anim-mode]")) {
+        item.classList.toggle("is-active", item === button);
+      }
+      initPlayback();
+    });
+  }
 
   container.querySelector("[data-prev-frame]").addEventListener("click", () => {
     selectedFrame = Math.max(0, selectedFrame - 1);
@@ -215,7 +243,6 @@ export async function renderPlay(container, params, ctx) {
       button.textContent = "Generar con IA";
     }
   });
-  void spec;
   void playback;
 }
 

@@ -10,11 +10,13 @@ Repositorio: [github.com/protongit/basket-playbook](https://github.com/protongit
 
 - **Cuentas y sesiones** con registro abierto, login, logout y datos privados por usuario.
 - **Playbooks** con capítulos, colores, etiquetas y buscador.
+- **Pista FIBA realista** en SVG, dibujada a escala (28 × 15 m, 3 puntos de 6,75 m, zona de 4,90 × 5,80 m, aro y red) con parqué, líneas, tablero y balón con costuras.
 - **Editor de pizarra** en SVG con jugadores 1–5, defensores X1–X5, balón y notación clásica: corte, bote, pase, bloqueo, mano a mano, tiro, caída, apertura y rotación defensiva.
 - **Línea de tiempo por bloques**: cada bloque es una posición; la app interpola y dibuja la acción entre bloques.
 - **Notas y ficha táctica**: objetivo, personal clave, lecturas, contras, puntos de coaching y etiquetas.
 - **Animación local determinista** en canvas, con play/pausa, arrastre temporal, velocidad y bucle.
-- **Animación con IA**: el servidor llama a `nan.builders` y guarda el `AnimationSpec` en la ficha de la jugada. Si la IA falla, se conserva una animación local.
+- **Animación con IA**: el servidor llama a `nan.builders` y la IA reinterpreta el movimiento (curvas, aceleración/frenada, pausas de bloqueo, arcos de pase y cámara). El `AnimationSpec` se guarda en la ficha. Si la IA falla, se conserva una animación local.
+- **Comparador IA / local** en la ficha para ver la diferencia entre la interpolación directa y la reinterpretación de la IA.
 - **Enlace público de solo lectura** para compartir con jugadores.
 - **Impresión / PDF** con una jugada por sección, frames, notas y leyenda.
 - **Persistencia en servidor** con SQLite y Docker todo-en-uno, listo para NaN Apps.

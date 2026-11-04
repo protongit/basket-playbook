@@ -2,6 +2,8 @@
 
 Basket Playbook usa la notación habitual de las pizarras de baloncesto. El objetivo es que cualquier jugador pueda leer el diagrama sin explicación adicional.
 
+La pista está dibujada a escala FIBA: 28 × 15 m, aro a 1,575 m de la línea de fondo, zona de 4,90 × 5,80 m, círculo de tiro libre de 1,80 m, 3 puntos de 6,75 m y esquinas a 0,90 m de la banda. El balón incluye costuras y sombra para que se lea como un balón real.
+
 | Elemento | Representación en la app | Interacción |
 |---|---|---|
 | Atacante | Círculo naranja con **1–5** | Arrastrar |

@@ -76,8 +76,10 @@ La acción se asigna a un jugador; el destino de un pase se deriva del portador 
 
 - Modo local determinista: siempre disponible.
 - Modo IA: el servidor envía la jugada a nan.builders y recibe un `AnimationSpec` validado.
-- El motor de canvas renderiza pista, jugadores, estelas, balón, captions y controles.
-- La IA no puede cambiar coordenadas ni inventar jugadores.
+- La IA reinterpreta el movimiento: elige curvas, aceleración/frenada, retrasos, pausas de bloqueo, arcos de pase y encuadre de cámara.
+- El motor de canvas renderiza pista FIBA realista, jugadores, estelas, balón con costuras, captions y controles.
+- La IA no puede cambiar posiciones de salida o llegada ni inventar jugadores.
+- La ficha permite comparar la animación IA con la animación local determinista.
 
 ## Criterios de hecho
 
