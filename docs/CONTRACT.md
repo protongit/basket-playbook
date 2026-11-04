@@ -113,7 +113,7 @@ Todas las rutas privadas requieren cookie `bp_session`. Las respuestas de error 
 
 - `scrypt` para contraseñas.
 - Cookie `bp_session` HttpOnly, SameSite=Lax, Secure en producción.
-- Token de sesión de 32 bytes; hash SHA-256 en base.
+- Token de sesión de 32 bytes; HMAC-SHA256 con `SESSION_SECRET` en base.
 - Rate limit: login 12/15 min por IP+email; registro 100/h por IP.
 - Validación de `Origin` en POST/PATCH/DELETE.
 - Ownership check en todas las consultas de playbooks/jugadas.

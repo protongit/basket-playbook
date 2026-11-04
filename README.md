@@ -110,7 +110,7 @@ Más detalle en [`docs/DEPLOY-NAN.md`](docs/DEPLOY-NAN.md).
 ## Seguridad
 
 - Contraseñas con `scrypt` y salt aleatorio.
-- Token de sesión opaco; en la base solo se guarda su hash SHA-256.
+- Token de sesión opaco; en la base solo se guarda su HMAC-SHA256.
 - Cookie `HttpOnly`, `SameSite=Lax` y `Secure` en producción.
 - Todas las consultas de playbooks y jugadas se filtran por propietario.
 - La `NAN_API_KEY` nunca llega al navegador.
